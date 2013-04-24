@@ -1003,6 +1003,66 @@ function testGridNavigation()
 		"first record from EOF");
 }
 
+/**
+ * If we create the grid, insert rows into its data source (causing a
+ * {@link com.qwirx.data.Datasource.Events.ROWS_INSERT} event) and then
+ * render the grid, it used to add the existing rows again, causing
+ * duplicate rows.
+ */
+function testGridInsertRowsIntoDataSourceBeforeRender()
+{
+	var container = new goog.ui.Component();
+	container.decorate(domContainer);
+	
+	var grid = new com.qwirx.grid.NavigableGrid(ds);
+	var oldCount = ds.getCount();
+	
+	// Add a row between new() and createDom()
+	ds.add({product: 'fish', strength: 'Full of omega oils',
+		weakness: 'Smells of fish, goes bad quickly, not vegan compatible'});
+	
+	grid.createDom();
+	// Add a row between createDom() and enterDocument()
+	ds.add({product: 'cheese', strength: 'Tasty, smelly, vegetarian',
+		weakness: 'Cows produce methane, some people are intolerant'});
+	// The grid doesn't know how many rows or columns it contains;
+	// it doesn't know how many rows will fit, and it therefore hasn't
+	// queried the datasource, so it doesn't know what the columns
+	// are either.
+	assertObjectEquals([], grid.columns_);
+	assertObjectEquals([], grid.rows_);
+	
+	grid.addClassName('fb-datagrid');
+	container.addChild(grid, true /* opt_render */);
+	assertEquals("Grid should have the same number of rows as the datasource",
+		ds.getCount(), grid.rows_.length);
+	
+	var oldRows = grid.rows_;
+	var oldHeaderRow = grid.headerRow_;
+	// Check that it's OK to remove the grid from the document and add it again
+	container.removeChild(grid, true /* opt_unrender */);
+	
+	assertObjectEquals("The grid should have forgotten all its columns",
+		[], grid.columns_);
+	assertObjectEquals("The grid should have forgotten all its rows",
+		[], grid.rows_);
+	assertUndefined("The grid should have forgotten its header row",
+		grid.headerRow_);
+	
+	// All the old rows should have been removed from the document
+	for (var i = 0; i < oldRows.length; i++)
+	{
+		assertNull("Row "+i+" should have been removed from the document",
+			oldRows[i].tableRowElement_.parentNode);
+	}
+	assertNull("Header row should have been removed from the document",
+		oldHeaderRow.parentNode);
+	
+	container.addChild(grid, true /* opt_render */);
+	assertEquals("Grid should still have the same number of rows " +
+		"as the datasource", ds.getCount(), grid.rows_.length);
+}
+
 // TODO test that inserting and updating rows in the data source when
 // the grid is scrolled works properly.
 

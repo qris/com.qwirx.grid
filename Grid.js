@@ -73,7 +73,7 @@ com.qwirx.grid.Grid.prototype.createDom = function()
 	this.scrollBarOuterDiv_ = this.dom_.createDom('div',
 		'fb-grid-scroll-v');
 	this.element_.appendChild(this.scrollBarOuterDiv_);
-
+	
 	this.dataDiv_ = this.dom_.createDom('div', 'fb-grid-data');
 	this.element_.appendChild(this.dataDiv_);
 	
@@ -83,39 +83,19 @@ com.qwirx.grid.Grid.prototype.createDom = function()
 	this.scrollBar_.decorate(this.scrollBarOuterDiv_);
 	this.scrollBar_.setOrientation(goog.ui.Slider.Orientation.VERTICAL);
 	this.scrollBar_.setMaximum(this.dataSource_.getCount());
-
+	
 	// Scrollbar value is inverted: the maximum value is at the top,
 	// which is where we want to be initially.
 	this.scrollBar_.setValue(this.dataSource_.getCount(), 0);
-
+	
 	// NavigableGrid subclass relies on the dataTable_ property
 	// to extract our grid table and reparent it.
 	this.dataTable_ = this.dom_.createDom('table',
 		{'class': 'fb-grid-data-table'});
 	this.dataTable_.id = goog.string.createUniqueString();
 	this.dataDiv_.appendChild(this.dataTable_);
-
-	var columns = this.dataSource_.getColumns();
-	var numCols = columns.length;
-
-	var cornerCell = this.dom_.createDom('th', {});
-	cornerCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
-		com.qwirx.grid.Grid.CellType.CORNER;
-	var colHeadingCells = [cornerCell];
+	
 	this.columns_ = [];
-	
-	for (var i = 0; i < numCols; i++)
-	{
-		var columnInfo = columns[i];
-		var column = new com.qwirx.grid.Grid.Column(this,
-			columnInfo.caption);
-		this.columns_.push(column);
-		colHeadingCells.push(column.getIdentityNode());
-	}
-	
-	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
-	this.dataTable_.appendChild(this.headerRow_);
-
 	this.rows_ = [];
 	this.highlightStyles_ = goog.style.installStyles('', this.element_);
 	this.currentRowStyle_ = goog.style.installStyles('', this.element_);
@@ -141,6 +121,26 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	var containerPos = goog.style.getPageOffset(container);
 	var containerBorder = goog.style.getBorderBox(container);	
 	this.partialLastRow = false;	
+	
+	var columns = this.dataSource_.getColumns();
+	var numCols = columns.length;
+
+	var cornerCell = this.dom_.createDom('th', {});
+	cornerCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
+		com.qwirx.grid.Grid.CellType.CORNER;
+	var colHeadingCells = [cornerCell];
+	
+	for (var i = 0; i < numCols; i++)
+	{
+		var columnInfo = columns[i];
+		var column = new com.qwirx.grid.Grid.Column(this,
+			columnInfo.caption);
+		this.columns_.push(column);
+		colHeadingCells.push(column.getIdentityNode());
+	}
+	
+	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
+	this.dataTable_.appendChild(this.headerRow_);
 	
 	for (var i = 0; i < this.dataSource_.getCount(); i++)
 	{
@@ -195,6 +195,25 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	goog.events.listen(this.cursor_, 
 		com.qwirx.data.Cursor.Events.MOVE_TO, this.onCursorMove,
 		false, this);		
+};
+
+/**
+ * @inheritdoc
+ */
+com.qwirx.grid.Grid.prototype.exitDocument = function()
+{
+	for (var i = 0; i < this.rows_.length; i++)
+	{
+		this.dom_.removeNode(this.rows_[i].tableRowElement_);
+	}
+	
+	this.columns_ = [];
+	this.rows_ = [];
+	
+	this.dom_.removeNode(this.headerRow_);
+	delete this.headerRow_;
+	
+	goog.base(this, 'exitDocument');
 };
 
 com.qwirx.grid.Grid.ATTR_PREFIX = 'com_qwirx_grid_';
@@ -391,11 +410,18 @@ com.qwirx.grid.Grid.prototype.setScroll =
 com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
 	function(event, handler)
 {
-	var rowIndexes = event.getAffectedRows();
-	for (var i = 0; i < rowIndexes.length; i++)
+	if (this.isInDocument())
 	{
-		handler.call(this, rowIndexes[i], 
-			this.dataSource_.get(rowIndexes[i]));
+		var rowIndexes = event.getAffectedRows();
+		for (var i = 0; i < rowIndexes.length; i++)
+		{
+			handler.call(this, rowIndexes[i], 
+				this.dataSource_.get(rowIndexes[i]));
+		}
+	}
+	else
+	{
+		// nothing to update! enterDocument will render for us
 	}
 };
 
