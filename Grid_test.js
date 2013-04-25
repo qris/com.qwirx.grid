@@ -735,6 +735,122 @@ function testGridScrollAndHighlight()
 		grid.getCursor().getPosition());
 }
 
+/**
+ * It's not enough for the grid navigation buttons to listen for
+ * onClick events; they must also intercept mouse events to avoid
+ * them being sent to the grid, where they will cause all kinds of
+ * trouble.
+ */
+function testGridNavigationButtonsInterceptMouseEvents()
+{
+	var ds = new TestDataSource();
+	var grid = initGrid(ds);
+
+	var buttons = [false, // included to ensure initial conditions
+		grid.nav_.firstButton_,
+		grid.nav_.prevPageButton_,
+		grid.nav_.prevButton_,
+		grid.nav_.nextButton_,
+		grid.nav_.nextPageButton_,
+		grid.nav_.lastButton_];
+
+	// Patch the grid control to intercept mouseDown and mouseUp
+	// events, which should be intercepted before they reach it.
+	function f(e)
+	{
+		fail(e.type + " event propagation should be stopped " +
+			"before reaching the Grid");
+	}
+	
+	var handler = grid.getHandler();
+	var element = grid.getElement();
+	handler.listen(element, goog.events.EventType.MOUSEDOWN, f);
+	handler.listen(element, goog.events.EventType.MOUSEUP, f);
+	
+	for (var i = 0; i < buttons.length; i++)
+	{
+		var button = buttons[i];
+		
+		if (button == false)
+		{
+			// test initial conditions
+		}
+		else if (!button.isEnabled())
+		{
+			// can't send events to disabled buttons!
+		}
+		else
+		{
+			var event = com.qwirx.test.assertEvent(button,
+				com.qwirx.util.ExceptionEvent.EVENT_TYPE,
+				function()
+				{
+					com.qwirx.test.FakeClickEvent.send(button);
+				},
+				"The grid navigation button did not intercept the event",
+				true /* opt_continue_if_exception_not_thrown */);
+			
+			// If an event was thrown at all, it must be an ExceptionEvent
+			// and contain the right kind of exception.
+			if (event)
+			{
+				var exception = event.getException();
+				goog.asserts.assertInstanceof(exception,
+					com.qwirx.data.IllegalMove);
+			}
+		}
+		
+		assertSelection(grid, "should be no selection",
+			-1, -1, -1, -1);
+		
+		// MOUSEUP does actually trigger an action, so it will
+		// move the cursor, so we can't test this:
+		/*
+		assertEquals("cursor should not have moved on " +
+			buttonName + " button click", com.qwirx.data.Cursor.BOF,
+			grid.getCursor().getPosition());
+		var buttonName = (button ? button.getContent() : "no");
+		assertEquals("grid should not have scrolled on " +
+			buttonName + " button click", 0, grid.scrollOffset_.y);
+		*/
+	}
+}
+
+function assertNavigationButtonStates(grid)
+{
+	var position = grid.nav_.getCursor().getPosition();
+	var rows = grid.dataSource_.getCount();
+	var BOF = com.qwirx.data.Cursor.BOF;
+	var EOF = com.qwirx.data.Cursor.EOF;
+	var NEW = com.qwirx.data.Cursor.NEW;
+	var inData = (position != BOF && position != EOF && position != NEW);
+	assertTrue("cannot be positioned in the data when there isn't any",
+		rows != 0 || !inData);
+	
+	function message(buttonName)
+	{
+		return "wrong enabled state for " + buttonName + " at " +
+			position + " of " + (rows >= 0 ? rows : "indeterminate") + " rows";
+	}
+	
+	assertEquals(message("firstButton_"),
+		position != 0, grid.nav_.firstButton_.isEnabled());
+	assertEquals(message("prevPageButton_"),
+		position != BOF, grid.nav_.prevPageButton_.isEnabled());
+	assertEquals(message("prevButton_"),
+		position != BOF, grid.nav_.prevButton_.isEnabled());
+	assertEquals(message("nextButton_"),
+		position != EOF, grid.nav_.nextButton_.isEnabled());
+	assertEquals(message("nextPageButton_"),
+		position != EOF, grid.nav_.nextPageButton_.isEnabled());
+	
+	// TODO should we allow moving to the end of a dataset of
+	// indeterminate size? it might take forever, but if not, it
+	// could save the user a lot of time paging through it manually!
+	assertEquals(message("lastButton_"),
+		rows == -1 || position != rows - 1, grid.nav_.lastButton_.isEnabled());
+}
+
 function assertNavigateGrid(grid, startPosition, button,
 	expectedPosition, expectedScroll, positionMessage, scrollMessage)
 {
@@ -743,6 +859,15 @@ function assertNavigateGrid(grid, startPosition, button,
 		startPosition, grid.nav_.getCursor().getPosition());
 	assertEquals("starting position text field contents",
 		startPosition + "", grid.nav_.rowNumberField_.getValue());
+	
+	// button states should be correct before navigating
+	assertNavigationButtonStates(grid);
+	
+	if (!button.isEnabled())
+	{
+		// can't send an event to a disabled button!
+		return;
+	}
 	
 	if (!scrollMessage)
 	{
@@ -785,95 +910,28 @@ function assertNavigateGrid(grid, startPosition, button,
 	}	
 
 	assertEquals(css, grid.currentRowStyle_.textContent);
-}
-
-/**
- * It's not enough for the grid navigation buttons to listen for
- * onClick events; they must also intercept mouse events to avoid
- * them being sent to the grid, where they will cause all kinds of
- * trouble.
- */
-function testGridNavigationButtonsInterceptMouseEvents()
-{
-	var ds = new TestDataSource();
-	var grid = initGrid(ds);
-
-	var buttons = [false, // included to ensure initial conditions
-		grid.nav_.firstButton_,
-		grid.nav_.prevPageButton_,
-		grid.nav_.prevButton_,
-		grid.nav_.nextButton_,
-		grid.nav_.nextPageButton_,
-		grid.nav_.lastButton_];
-
-	// Patch the grid control to intercept mouseDown and mouseUp
-	// events, which should be intercepted before they reach it.
-	function f(e)
-	{
-		fail(e.type + " event propagation should be stopped " +
-			"before reaching the Grid");
-	}
-	
-	var handler = grid.getHandler();
-	var element = grid.getElement();
-	handler.listen(element, goog.events.EventType.MOUSEDOWN, f);
-	handler.listen(element, goog.events.EventType.MOUSEUP, f);
-	
-	for (var i = 0; i < buttons.length; i++)
-	{
-		var button = buttons[i];
-		
-		if (button == false)
-		{
-			// test initial conditions
-		}
-		else
-		{
-			var event = com.qwirx.test.assertEvent(button,
-				com.qwirx.util.ExceptionEvent.EVENT_TYPE,
-				function()
-				{
-					com.qwirx.test.FakeClickEvent.send(button);
-				},
-				"The grid navigation button did not intercept the event",
-				true /* opt_continue_if_exception_not_thrown */);
-			
-			// If an event was thrown at all, it must be an ExceptionEvent
-			// and contain the right kind of exception.
-			if (event)
-			{
-				var exception = event.getException();
-				goog.asserts.assertInstanceof(exception,
-					com.qwirx.data.IllegalMove);
-			}
-		}
-		
-		var buttonName = (button ? button.getContent() : "no");
-		assertSelection(grid, "should be no selection",
-			-1, -1, -1, -1);
-		// MOUSEUP does actually trigger an action, so it will
-		// move the cursor, so we can't test this:
-		/*
-		assertEquals("cursor should not have moved on " +
-			buttonName + " button click", com.qwirx.data.Cursor.BOF,
-			grid.getCursor().getPosition());
-		assertEquals("grid should not have scrolled on " +
-			buttonName + " button click", 0, grid.scrollOffset_.y);
-		*/
-	}
+	// button states should have been updated too
+	assertNavigationButtonStates(grid);
 }
 
 function assertNavigationException(grid, startPosition, button, message)
 {
 	grid.nav_.getCursor().setPosition(startPosition);
 	assertEquals(startPosition, grid.nav_.getCursor().getPosition());
-	// Browser event handlers should NOT throw exceptions, because
-	// nothing can intercept them and handle them properly. They should
-	// throw a {@link com.qwirx.util.ExceptionEvent} at themselves
-	// instead.
-	com.qwirx.test.assertEvent(button, com.qwirx.util.ExceptionEvent.EVENT_TYPE,
-		function() { com.qwirx.test.FakeClickEvent.send(button); },
-		message);
+	// button states should be correct before navigating
+	assertNavigationButtonStates(grid);
+	
+	if (button.isEnabled())
+	{
+		// Browser event handlers should NOT throw exceptions, because
+		// nothing can intercept them and handle them properly. They should
+		// throw a {@link com.qwirx.util.ExceptionEvent} at themselves
+		// instead.
+		com.qwirx.test.assertEvent(button,
+			com.qwirx.util.ExceptionEvent.EVENT_TYPE,
+			function() { com.qwirx.test.FakeClickEvent.send(button); },
+			message);
+	}
 }
 
 function testGridNavigation()

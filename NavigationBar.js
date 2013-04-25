@@ -253,7 +253,28 @@ com.qwirx.grid.NavigationBar.prototype.onLastButton = function(event)
  */
 com.qwirx.grid.NavigationBar.prototype.onCursorMove = function(event)
 {
-	this.rowNumberField_.setValue(this.cursor_.getPosition());
+	var position = this.cursor_.getPosition();
+	this.rowNumberField_.setValue(position);
+	
+	var rows = this.cursor_.getRowCount();
+	var BOF = com.qwirx.data.Cursor.BOF;
+	var EOF = com.qwirx.data.Cursor.EOF;
+	var NEW = com.qwirx.data.Cursor.NEW;
+	
+	var inData = (position != BOF && position != EOF && position != NEW);
+	goog.asserts.assert(rows != 0 || !inData,
+		"cannot be positioned in the data when there isn't any");
+	
+	this.firstButton_.setEnabled(position != 0);
+	this.prevPageButton_.setEnabled(position != BOF);
+	this.prevButton_.setEnabled(position != BOF);
+	this.nextButton_.setEnabled(position != EOF);
+	this.nextPageButton_.setEnabled(position != EOF);
+	
+	// TODO should we allow moving to the end of a dataset of
+	// indeterminate size? it might take forever, but if not, it
+	// could save the user a lot of time paging through it manually!
+	this.lastButton_.setEnabled(rows == -1 || position != rows - 1);
 };
 
 com.qwirx.grid.GridNavigationBar = function(cursor, opt_renderer,
