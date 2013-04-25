@@ -470,15 +470,15 @@ com.qwirx.grid.Grid.prototype.appendRow = function(columns)
 com.qwirx.grid.Grid.prototype.handleRowUpdate = function(rowIndex,
 	columns)
 {
-	var oldRow = this.rows_[rowIndex];
+	var row = this.rows_[rowIndex];
 	var numCols = columns.length;
 	var cells = [];
 	
 	for (var i = 0; i < numCols; i++)
 	{
 		var column = columns[i];
-		var td = oldRow.columns_[i].tableCell;
-		td.innerHTML = oldRow.columns_[i].value = column.value;
+		var td = row.columns_[i].tableCell;
+		td.innerHTML = row.columns_[i].value = column;
 	}
 };
 
