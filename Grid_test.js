@@ -476,10 +476,10 @@ function random(max, seed)
 TestDataSource.prototype.get = function(rowIndex)
 {
 	this.requestedRows.push(rowIndex);
-	return [
-		{value: "" + rowIndex},
-		{value: "" + random(1000, rowIndex)}
-	];
+	return {
+		index: rowIndex,
+		random: random(1000, rowIndex)
+	};
 };
 
 TestDataSource.prototype.getCount = function()
@@ -495,7 +495,10 @@ TestDataSource.prototype.setRowCount = function(newRowCount)
 
 TestDataSource.prototype.getColumns = function()
 {
-	return [{caption: 'Row Index'}, {caption: 'Random Number'}];
+	return [
+		{name: 'index', caption: 'Row Index'},
+		{name: 'random', caption: 'Random Number'}
+	];
 };
 
 function testGridDataSource()
@@ -1061,6 +1064,38 @@ function testGridInsertRowsIntoDataSourceBeforeRender()
 	container.addChild(grid, true /* opt_render */);
 	assertEquals("Grid should still have the same number of rows " +
 		"as the datasource", ds.getCount(), grid.rows_.length);
+}
+
+function testGridRowsAreAllOnScreen()
+{
+	var tds = new TestDataSource();
+	var grid = initGrid(tds);
+	var outer = grid.dataDiv_;
+	
+	for (var i = 0; i < grid.rows_.length; i++)
+	{
+		var row = grid.rows_[i];
+		var elem = row.tableRowElement_;
+		assertTrue("row " + i + " top " + elem.offsetTop +
+			" should be less than grid element bottom " +
+			(outer.offsetTop + outer.offsetHeight),
+			elem.offsetTop <= outer.offsetTop + outer.offsetHeight);
+		var expectOverflow = (i == grid.rows_.length - 1 &&
+			grid.partialLastRow);
+		assertEquals("row " + i + " bottom " +
+			(elem.offsetTop + elem.offsetHeight) + " should " +
+			(expectOverflow ? "not " : "") + "be less than " +
+			"grid element bottom " + (outer.offsetTop + outer.offsetHeight),
+			expectOverflow,
+			elem.offsetTop + elem.offsetHeight > outer.offsetTop + outer.offsetHeight);
+		
+		var cells = row.tableDataCells_;
+		for (var j = 1; j < cells.length; j++)
+		{
+			assertNotEquals("Cell should have contents loaded", "",
+				cells[j].innerHTML);
+		}
+	}
 }
 
 // TODO test that inserting and updating rows in the data source when
