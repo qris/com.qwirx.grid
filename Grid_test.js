@@ -1162,3 +1162,24 @@ function testGridRowsAreAllOnScreen()
 // TODO test that inserting a row in the middle of a selected area
 // extends the selection by 1 row, or selects the same original rows
 // but not the newly added one if/when we support split selections.
+
+// TODO check that inserting a row before the selected area moves it
+// down by one row.
+
+// TODO check that updating a row that's being edited is handled
+// appropriately (what is appropriate? an exception event?)
+
+// TODO test navigation in a grid with uncertain row counts.
+
+// TODO check that only modified/newly visible rows are refreshed on 
+// navigation.
+
+// TODO check that row 0 is not updated spuriously on navigation.
+
+// TODO check that the scroll bar is disabled when scrolling is not
+// necessary/possible.
+
+// TODO check button and scrollbar enabled/disabled states, navigation
+// and scrollbar when the datasource contains no rows, or all rows
+// have been removed. Note: you can move between BOF and EOF even if the
+// datasource contains no rows, and you can add a new row if it's editable.
