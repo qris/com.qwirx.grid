@@ -286,6 +286,7 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex, columnsText)
 		cells.push(td);
 	}
 	
+	this.tableDataCells_ = cells;
 	this.tableRowElement_ = grid.dom_.createDom('tr', {}, cells);
 	this.tableRowElement_.id = "row_" + rowIndex;
 };
