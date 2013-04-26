@@ -1002,6 +1002,21 @@ function testGridNavigation()
 		"previous page from 1");
 	assertNavigateGrid(grid, 1, grid.nav_.firstButton_, 0, 0,
 		"first record from 1");
+	
+	// movement from visibleRows - 1
+	var fullyVisibleRows = grid.getFullyVisibleRowCount();
+	assertNavigateGrid(grid, fullyVisibleRows - 1, grid.nav_.nextButton_,
+		fullyVisibleRows /* expectedPosition */,
+		1 /* expectedScroll */, "next record from " + (fullyVisibleRows - 2),
+		"moving forward 1 row from position " + (fullyVisibleRows - 1) +
+		" should scroll down by 1 row to keep the current row visible");
+	assertNavigateGrid(grid, fullyVisibleRows - 1, grid.nav_.nextPageButton_,
+		fullyVisibleRows * 2 - 1 /* expectedPosition */,
+		fullyVisibleRows /* expectedScroll */,
+		"next page from " + (fullyVisibleRows - 2),
+		"moving forward 1 page from position " + (fullyVisibleRows - 1) +
+		" should scroll down by " + fullyVisibleRows + " rows to keep the " +
+		"current row visible");
 		
 	// Movements from record gridRows-1 (second page of rows)
 	grid.setScroll(0, gridRows-1);

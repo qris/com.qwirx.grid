@@ -426,6 +426,33 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
 	}
 };
 
+/**
+ * Converts row object values to the strings that should be displayed
+ * in the Grid.
+ * @param {Object} rowObject The object containing the (new) data for this
+ * row.
+ * @param {Array} column The column description for this column of this grid,
+ * should be equal to <code>this.dataSource_.getColumns()[i]</code>.
+ * @return {string} to the string that should be displayed in the Grid
+ * for this <code>colIndex</code>.
+ */
+com.qwirx.grid.Grid.prototype.getColumnText = function(rowObject, column)
+{
+	var value = rowObject[column.name];
+	var text;
+	
+	if (value == null || value == undefined)
+	{
+		text = "";
+	}
+	else
+	{
+		text = value.toString();
+	}
+	
+	return text;
+};
+
 com.qwirx.grid.Grid.prototype.handleRowInsert =
 	function(newRowIndex, rowObject)
 {
@@ -435,16 +462,8 @@ com.qwirx.grid.Grid.prototype.handleRowInsert =
 	var numCols = columns.length;
 	for (var i = 0; i < numCols; i++)
 	{
-		var colValue = rowObject[columns[i].name];
-		if (colValue == null || colValue == undefined)
-		{
-			colValue = "";
-		}
-		else
-		{
-			colValue = colValue.toString();
-		}
-		colData.push(colValue);
+		var colText = this.getColumnText(rowObject, columns[i]);
+		colData.push(colText);
 	}
 	
 	var row = new com.qwirx.grid.Grid.Row(this, newRowIndex, colData);
@@ -468,17 +487,18 @@ com.qwirx.grid.Grid.prototype.appendRow = function(columns)
  * rowIndex with the new contents in the array of columns provided.
  */
 com.qwirx.grid.Grid.prototype.handleRowUpdate = function(rowIndex,
-	columns)
+	rowObject)
 {
 	var row = this.rows_[rowIndex];
-	var numCols = columns.length;
-	var cells = [];
+	var columns = this.dataSource_.getColumns();
+	var colData = [];
 	
+	var numCols = columns.length;
 	for (var i = 0; i < numCols; i++)
 	{
-		var column = columns[i];
+		var colText = this.getColumnText(rowObject, columns[i]);
 		var td = row.columns_[i].tableCell;
-		td.innerHTML = row.columns_[i].value = column;
+		td.innerHTML = row.columns_[i].value = colText;
 	}
 };
 
@@ -1013,8 +1033,8 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 		
 		if (visible)
 		{
-			var columns = this.dataSource_.get(dataRow);
-			this.handleRowUpdate(i, columns);
+			var newValues = this.dataSource_.get(dataRow);
+			this.handleRowUpdate(i, newValues);
 		}
 	}
 	
