@@ -386,22 +386,72 @@ function testGridInsertRowAt()
 	
 	function assertCellContentsAndSelection(rowIndex, contents)
 	{
+		var scroll = grid.scrollOffset_;
+		assertEquals("Grid seems to be displaying the wrong data row " +
+			"on table row " + rowIndex, rowIndex + scroll.y,
+			grid.rows_[rowIndex].getRowIndex());
+		
+		var cell = grid.getCell(0, rowIndex);
 		assertEquals("Wrong contents in grid cell ("+rowIndex+",0)",
-			contents, grid.getCell(0, rowIndex).text);
-		assertEquals(rowIndex, grid.rows_[rowIndex].getRowIndex());
-		var cell = grid.getCell(0, rowIndex).tableCell;
-		assertEquals(rowIndex,
-			cell[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW].getRowIndex());
-		com.qwirx.test.FakeBrowserEvent.mouseDown(cell);
+			contents, cell.text);
+		assertEquals("grid cell at 0," + rowIndex + " seems to be part " +
+			"of the wrong row!", grid.rows_[rowIndex].getRowIndex(),
+			cell.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW].getRowIndex());
+		
+		com.qwirx.test.FakeBrowserEvent.mouseDown(cell.tableCell);
 		assertSelection(grid, 'Selection should have changed with mousedown',
-			0, rowIndex, 0, rowIndex);
-		assertEquals("mousedown should have set current row", rowIndex,
-			grid.getCursor().getPosition());
+			0, rowIndex + scroll.y, 0, rowIndex + scroll.y);
+		assertEquals("mousedown should have set current row",
+			rowIndex + scroll.y, grid.getCursor().getPosition());
 	}
 	
 	assertCellContentsAndSelection(0, oldRow0.product);
 	assertCellContentsAndSelection(1, "beer");
 	assertCellContentsAndSelection(2, oldRow1.product);
+	
+	for (var i = 0; i < grid.rows_.length; i++)
+	{
+		var row = grid.rows_[i];
+		assertEquals("Newly inserted row " + i + " has the wrong ID " +
+			"for highlighting", "row_" + i, row.tableRowElement_.id);
+	}
+	
+	// Test that inserting a row when scrolled also works
+	grid.setScroll(0, 1);
+	ds.insert(2, 
+		{product: 'wine',
+			strength: 'Traditional Roman drink, tasty',
+			weakness: 'Hangovers, expensive'});
+	assertCellContentsAndSelection(0, "beer");
+	assertCellContentsAndSelection(1, "wine");
+	assertCellContentsAndSelection(2, oldRow1.product);
+	assertCellContentsAndSelection(3, ds.get(4).product);
+	assertCellContentsAndSelection(4, ds.get(5).product);
+	
+	grid.setScroll(0, 0);
+	assertCellContentsAndSelection(0, oldRow0.product);
+	assertCellContentsAndSelection(1, "beer");
+	assertCellContentsAndSelection(2, "wine");
+	assertCellContentsAndSelection(3, oldRow1.product);
+	assertCellContentsAndSelection(4, ds.get(4).product);
+	assertCellContentsAndSelection(5, ds.get(5).product);
+	
+	// Keep adding rows until the grid stops adding rows to match,
+	// because it can't display any more.
+	assertEquals("Can't test that grid stops adding rows unless the " +
+		"row counts match to start with", ds.getCount(),
+		grid.getVisibleRowCount());
+	for (var i = 0; ds.getCount() == grid.getVisibleRowCount(); i++)
+	{
+		if (i > 10000)
+		{
+			throw new Error("emergency brakes!");
+		}
+		
+		ds.insert(3, {product: 'new product ' + i,
+			strength: 'Better than product ' + (i-1),
+			weakness: 'Soon to be obsolete'});
+	}
 }
 
 function assertGridContents(grid, data)

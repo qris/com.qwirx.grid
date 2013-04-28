@@ -142,34 +142,12 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
 	this.dataTable_.appendChild(this.headerRow_);
 	
-	for (var i = 0; i < this.dataSource_.getCount(); i++)
+	this.partialLastRow = false;
+	
+	for (var i = 0; i < this.dataSource_.getCount() && !this.partialLastRow;
+		 i++)
 	{
-		this.handleRowInsert(i, this.dataSource_.get(i));
-
-		// stolen from goog.style.scrollIntoContainerView 
-		var element = this.rows_[i].getRowElement();
-		if (element.clientHeight == 0)
-		{
-			throw new Error("A row element with zero height cannot " +
-				"be added to a dynamic grid, since the number of " +
-				"such rows cannot be calculated.");
-		}
-		
-		var elementPos = goog.style.getPageOffset(element);
-		if (elementPos.y + element.clientHeight >
-			containerPos.y + container.clientHeight + containerBorder.top)
-		{
-			// This row can't be completely displayed in the
-			// container. Don't add any more rows.
-			this.partialLastRow = true;
-			break;
-		}
-		
-		if (i > 1000 || elementPos.y > 10000)
-		{
-			// emergency brakes!
-			throw new Error("Emergency brakes!");
-		}
+		this.addRow();
 	}
 	
 	// Scrollbar value is inverted: the maximum value is at the top,
@@ -195,6 +173,67 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	goog.events.listen(this.cursor_, 
 		com.qwirx.data.Cursor.Events.MOVE_TO, this.onCursorMove,
 		false, this);		
+};
+
+com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
+{
+	// If we don't have any rows, the answer must be "yes!"
+	if (this.rows_.length == 0)
+	{
+		return true;
+	}
+	
+	var lastRow = this.rows_[this.rows_.length - 1];
+	var element = lastRow.getRowElement();
+	var elementPos = goog.style.getPageOffset(element);
+	
+	var container = this.dataDiv_;
+	var containerPos = goog.style.getPageOffset(container);
+	var containerBorder = goog.style.getBorderBox(container);	
+	
+	if (elementPos.y + element.clientHeight >
+		containerPos.y + container.clientHeight + containerBorder.top)
+	{
+		// The last row is partially visible, so no room for more rows
+		return false;
+	}
+	else
+	{
+		// The last row is fully visible, so there is room for more rows
+		return true;
+	}
+};
+
+com.qwirx.grid.Grid.prototype.addRow = function()
+{
+	var newRowIndex = this.rows_.length;
+	var row = new com.qwirx.grid.Grid.Row(this, newRowIndex);
+	this.rows_[newRowIndex] = row;
+	this.handleRowUpdate(newRowIndex);
+	
+	var element = row.getRowElement();
+	goog.dom.insertChildAt(this.dataTable_, element,
+		newRowIndex + 1 /* for header row */);
+	
+	// stolen from goog.style.scrollIntoContainerView 
+	if (element.clientHeight == 0)
+	{
+		throw new Error("A row element with zero height cannot " +
+			"be added to a dynamic grid, since the number of " +
+			"such rows cannot be calculated.");
+	}
+	
+	var elementPos = goog.style.getPageOffset(element);
+	if (newRowIndex > 1000 || elementPos.y > 10000)
+	{
+		// emergency brakes!
+		throw new Error("Emergency brakes!");
+	}
+	
+	if (!this.canAddMoreRows())
+	{
+		this.partialLastRow = true;
+	}
 };
 
 /**
@@ -256,10 +295,13 @@ com.qwirx.grid.Grid.Column.prototype.getIdentityNode = function()
 /**
  * Row is a class, not a static index, to allow renumbering and
  * dynamically numbering large grids quickly.
+ * @param {com.qwirx.grid.Grid} grid The grid to which this Row belongs.
+ * @param {number} rowIndex The number of this row in the Grid (the index
+ * into grid.rows_, which are visible rows, rather than the data).
  */
-com.qwirx.grid.Grid.Row = function(grid, rowIndex, columnsText)
+com.qwirx.grid.Grid.Row = function(grid, rowIndex)
 {
-	this.grid_= grid;
+	this.grid_ = grid;
 	this.columns_ = [];
 	
 	var th = this.tableCell_ = grid.dom_.createDom('th', {}, '');
@@ -268,27 +310,54 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex, columnsText)
 	th[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW] = this;
 
 	var cells = [th];
-	
-	var numCols = columnsText.length;
-	for (var i = 0; i < numCols; i++)
-	{
-		var column = {text: columnsText[i]};
-		this.columns_[i] = column;
-		var cssClasses = 'col_' + i;
-		var td = column.tableCell = grid.dom_.createDom('td', cssClasses,
-			column.text);
-			
-		td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
-			com.qwirx.grid.Grid.CellType.MIDDLE;
-		td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL] = grid.columns_[i];
-		td[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW] = this;
-			
-		cells.push(td);
-	}
-	
 	this.tableDataCells_ = cells;
 	this.tableRowElement_ = grid.dom_.createDom('tr', {}, cells);
 	this.tableRowElement_.id = "row_" + rowIndex;
+};
+
+com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
+{
+	var th = this.tableCell_;
+	var oldCells = this.tableDataCells_;
+	var newCells = [th];
+	var columns = [];
+	
+	for (var i = 0; i < textValues.length; i++)
+	{
+		var column = {
+			text: textValues[i],
+		};
+		var td;
+		
+		if (i < oldCells.length - 1 /* for header cell */)
+		{
+			td = oldCells[i + 1 /* for header cell */];
+			td.innerHTML = textValues[i];
+		}
+		else
+		{
+			var text = textValues[i];
+			var cssClasses = 'col_' + i;
+			td = this.grid_.dom_.createDom('td', cssClasses, column.text);
+			goog.dom.appendChild(this.tableRowElement_, td);
+			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
+				com.qwirx.grid.Grid.CellType.MIDDLE;
+			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL] = this.grid_.columns_[i];
+			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW] = this;
+		}
+		
+		column.tableCell = td;
+		newCells.push(td);
+		columns[i] = column;
+	}
+	
+	for (var i = newCells.length; i < oldCells.length; i++)
+	{
+		goog.dom.removeNode(oldCells[i]);
+	}
+	
+	this.columns_ = columns;
+	this.tableDataCells_ = newCells;
 };
 
 /**
@@ -416,8 +485,7 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
 		var rowIndexes = event.getAffectedRows();
 		for (var i = 0; i < rowIndexes.length; i++)
 		{
-			handler.call(this, rowIndexes[i], 
-				this.dataSource_.get(rowIndexes[i]));
+			handler.call(this, rowIndexes[i]);
 		}
 	}
 	else
@@ -453,24 +521,37 @@ com.qwirx.grid.Grid.prototype.getColumnText = function(rowObject, column)
 	return text;
 };
 
-com.qwirx.grid.Grid.prototype.handleRowInsert =
-	function(newRowIndex, rowObject)
+/**
+ * Respond to a datasource row being inserted at the given index.
+ * This could be by refreshing the row and all subsequent ones, if it's
+ * visible, otherwise by updating the scroll position if necessary.
+ */
+com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 {
-	var columns = this.dataSource_.getColumns();
-	var colData = [];
+	// Calculate the grid row that corresponds to the data source row index,
+	// and update that row if visible, and all the remaining ones.
+	var scroll = this.scrollOffset_;
+	var firstGridRowToUpdate = newRowIndex - scroll.y;
 	
-	var numCols = columns.length;
-	for (var i = 0; i < numCols; i++)
+	// TODO if a row is inserted off screen, just change the scroll position
+	// to avoid refreshing the entire grid.
+	if (firstGridRowToUpdate < 0)
 	{
-		var colText = this.getColumnText(rowObject, columns[i]);
-		colData.push(colText);
+		firstGridRowToUpdate = 0;
 	}
 	
-	var row = new com.qwirx.grid.Grid.Row(this, newRowIndex, colData);
-	this.rows_.splice(newRowIndex, 0, row);
-
-	goog.dom.insertChildAt(this.dataTable_, row.getRowElement(),
-		newRowIndex + 1 /* for header row */);
+	var lastGridRowToUpdate = this.rows_.length - 1;
+	
+	for (var i = firstGridRowToUpdate; i < lastGridRowToUpdate; i++)
+	{
+		this.handleRowUpdate(i + scroll.y);
+	}
+	
+	// May need another row, and now we have data to fill it
+	if (!this.partialLastRow)
+	{
+		this.addRow();
+	}
 };
 
 /*
@@ -484,21 +565,36 @@ com.qwirx.grid.Grid.prototype.appendRow = function(columns)
 
 /**
  * Replace the existing contents of the existing row identified by
- * rowIndex with the new contents in the array of columns provided.
+ * rowIndex with the latest contents retrieved from the data source.
  */
-com.qwirx.grid.Grid.prototype.handleRowUpdate = function(rowIndex,
-	rowObject)
+com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 {
-	var row = this.rows_[rowIndex];
-	var columns = this.dataSource_.getColumns();
-	var colData = [];
+	var dataObject = this.dataSource_.get(dataRowIndex);
 	
-	var numCols = columns.length;
-	for (var i = 0; i < numCols; i++)
+	var scroll = this.scrollOffset_;
+	var gridRowIndex = dataRowIndex - scroll.y;
+	
+	if (gridRowIndex >= 0 && gridRowIndex < this.rows_.length)
 	{
-		var colText = this.getColumnText(rowObject, columns[i]);
-		var td = row.columns_[i].tableCell;
-		td.innerHTML = row.columns_[i].value = colText;
+		// The row is displayed, so we need to update it
+		var row = this.rows_[gridRowIndex];
+		goog.asserts.assert(row, "Where is row " + gridRowIndex + "?");
+		
+		var columns = this.dataSource_.getColumns();
+		var colValues = [];
+		
+		var numCols = columns.length;
+		for (var i = 0; i < numCols; i++)
+		{
+			var colText = this.getColumnText(dataObject, columns[i]);
+			colValues[i] = colText;
+		}
+		
+		row.setValues(colValues);
+	}
+	else
+	{
+		// not displayed, nothing to do
 	}
 };
 
@@ -1033,8 +1129,7 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 		
 		if (visible)
 		{
-			var newValues = this.dataSource_.get(dataRow);
-			this.handleRowUpdate(i, newValues);
+			this.handleRowUpdate(dataRow);
 		}
 	}
 	
