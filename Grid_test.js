@@ -455,6 +455,23 @@ function testGridInsertRowAt()
 		ds.insert(3, {product: 'new product ' + i,
 			strength: 'Better than product ' + (i-1),
 			weakness: 'Soon to be obsolete'});
+		
+		if (grid.partialLastRow)
+		{
+			assertEquals("the last physical grid row is partially hidden, " +
+				"so the scroll bar should be enabled to allow access to it",
+				ds.getCount() - grid.getFullyVisibleRowCount(),
+				grid.scrollBar_.getMaximum());
+		}
+		else
+		{
+			assertEquals("all physical grid rows are visible on screen , " +
+				"so the scroll bar should not be usable", 0, 
+				grid.scrollBar_.getMaximum());
+			assertEquals("all physical grid rows are visible on screen , " +
+				"so the number of grid rows should equal datasource rows",
+				ds.getCount(), grid.getFullyVisibleRowCount());
+		}
 	}
 }
 
