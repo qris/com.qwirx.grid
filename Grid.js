@@ -388,6 +388,12 @@ com.qwirx.grid.Grid.Row.prototype.getColumns = function()
 
 com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
 {
+	if (!this.isInDocument())
+	{
+		// not in document, nothing to do
+		return;
+	}
+	
 	var rowCount = this.dataSource_.getCount();
 	var newMax = 0;
 	

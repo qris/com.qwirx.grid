@@ -577,10 +577,13 @@ function testGridRespondsToDataSourceRowCountChanges()
 {
 	var ds = new TestDataSource();
 	var grid = initGrid(ds);
+	assertObjectEquals("grid should initially have NO selection",
+		com.qwirx.grid.Grid.NO_SELECTION, grid.drag);
 
 	ds.setRowCount(1);
 	assertEquals(0, grid.scrollBar_.getMaximum());
-	assertObjectEquals({}, grid.drag);
+	assertObjectEquals("grid should still have NO selection",
+		com.qwirx.grid.Grid.NO_SELECTION, grid.drag);
 	assertTrue("The following tests will fail unless at least " +
 		"one row is visible",
 		ds.getCount() < grid.getVisibleRowCount());
