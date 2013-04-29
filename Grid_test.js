@@ -831,8 +831,8 @@ function testGridNavigationButtonsInterceptMouseEvents()
 		}
 		else
 		{
-			var event = com.qwirx.test.assertEvent(button,
-				com.qwirx.util.ExceptionEvent.EVENT_TYPE,
+			var events = com.qwirx.test.assertEvents(button,
+				[com.qwirx.util.ExceptionEvent.EVENT_TYPE],
 				function()
 				{
 					com.qwirx.test.FakeClickEvent.send(button);
@@ -842,9 +842,9 @@ function testGridNavigationButtonsInterceptMouseEvents()
 			
 			// If an event was thrown at all, it must be an ExceptionEvent
 			// and contain the right kind of exception.
-			if (event)
+			if (events.length)
 			{
-				var exception = event.getException();
+				var exception = events[0].getException();
 				goog.asserts.assertInstanceof(exception,
 					com.qwirx.data.IllegalMove);
 			}
@@ -977,8 +977,8 @@ function assertNavigationException(grid, startPosition, button, message)
 		// nothing can intercept them and handle them properly. They should
 		// throw a {@link com.qwirx.util.ExceptionEvent} at themselves
 		// instead.
-		com.qwirx.test.assertEvent(button,
-			com.qwirx.util.ExceptionEvent.EVENT_TYPE,
+		com.qwirx.test.assertEvents(button,
+			[com.qwirx.util.ExceptionEvent.EVENT_TYPE],
 			function() { com.qwirx.test.FakeClickEvent.send(button); },
 			message);
 	}
