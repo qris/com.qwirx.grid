@@ -419,25 +419,28 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
 	this.scrollBar_.rangeModel.setMute(true);
 	this.scrollBar_.setMaximum(newMax);
 	
-	this.prepareForSelection();
+	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
+	{
+		this.prepareForSelection();
+		
+		// if the highlighted range is completely outside the new
+		// valid row range, reset it to defaults.
+		if (this.drag.y1 >= rowCount && this.drag.y2 >= rowCount)
+		{
+			this.drag = com.qwirx.grid.Grid.NO_SELECTION;
+		}
+		// if only the upper limit is outside the range, reset it
+		// to be within the range.
+		else if (this.drag.y2 > this.drag.y1 && this.drag.y2 > rowCount)
+		{
+			this.drag.y2 = rowCount - 1;
+		}
+		else if (this.drag.y1 > this.drag.y2 && this.drag.y1 > rowCount)
+		{
+			this.drag.y1 = rowCount - 1;
+		}
+	}
 	
-	// if the highlighted range is completely outside the new
-	// valid row range, reset it to defaults.
-	if (this.drag.y1 >= rowCount && this.drag.y2 >= rowCount)
-	{
-		this.drag = com.qwirx.grid.Grid.NO_SELECTION;
-	}
-	// if only the upper limit is outside the range, reset it
-	// to be within the range.
-	else if (this.drag.y2 > this.drag.y1 && this.drag.y2 > rowCount)
-	{
-		this.drag.y2 = rowCount - 1;
-	}
-	else if (this.drag.y1 > this.drag.y2 && this.drag.y1 > rowCount)
-	{
-		this.drag.y1 = rowCount - 1;
-	}
-
 	// setValue will reset the mute flag, so we can't suppress it,
 	// so let's take advantage of it to call refreshAll for us.
 	// this.scrollBar_.setValue(newVal);
@@ -558,6 +561,30 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 	{
 		this.addRow();
 	}
+	
+	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
+	{
+		if (this.drag.y1 < newRowIndex && this.drag.y2 < newRowIndex)
+		{
+			// selection is entirely before and does not include the 
+			// newly inserted row at all, so we don't need to change it.
+		}
+		else if (this.drag.y1 < newRowIndex)
+		{
+			// selection covers the new inserted row, so extend the
+			// selection to end on the same row as before.
+			this.drag.y2++;
+		}
+		else
+		{
+			// selection is after the newly inserted row, so move it down
+			// by 1 row.
+			this.drag.y1++;
+			this.drag.y2++;
+		}
+	}
+	
+	this.updateSelection_(false);
 };
 
 /*

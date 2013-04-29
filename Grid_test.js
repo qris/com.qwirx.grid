@@ -365,6 +365,12 @@ function testGridHighlightModeRows()
 		'mouseover on body after mouseup', 0, 0, x_max, 0);
 }
 
+var beer = {
+	product: 'beer',
+	strength: 'Refreshing, makes life more interesting/bearable',
+	weakness: 'Fattening as hell'
+};
+
 function testGridInsertRowAt()
 {
 	var grid = initGrid(ds);
@@ -377,10 +383,7 @@ function testGridInsertRowAt()
 	var oldRow1 = ds.get(1);
 	
 	// insert a row between two others
-	ds.insert(1, 
-		{product: 'beer',
-			strength: 'Refreshing, makes life more interesting/bearable',
-			weakness: 'Fattening as hell'});
+	ds.insert(1, beer);
 	assertEquals('Data source row count should have been updated',
 		oldCount + 1, grid.getDatasource().getCount());
 	
@@ -399,7 +402,8 @@ function testGridInsertRowAt()
 			cell.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW].getRowIndex());
 		
 		com.qwirx.test.FakeBrowserEvent.mouseDown(cell.tableCell);
-		assertSelection(grid, 'Selection should have changed with mousedown',
+		assertSelection(grid, "Selection should have changed with " +
+			"mousedown, and should be in virtual coordinates",
 			0, rowIndex + scroll.y, 0, rowIndex + scroll.y);
 		assertEquals("mousedown should have set current row",
 			rowIndex + scroll.y, grid.getCursor().getPosition());
@@ -1224,8 +1228,46 @@ function testGridRowsAreAllOnScreen()
 	}
 }
 
-// TODO test that inserting and updating rows in the data source when
-// the grid is scrolled works properly.
+function testInsertRowIntoSelectedArea()
+{
+	var grid = initGrid(ds);
+	
+	ds.insert(1, beer);
+	assertObjectEquals("inserting into datasource with no selected area " +
+		"should have no effect", com.qwirx.grid.Grid.NO_SELECTION, grid.drag);
+	
+	grid.setSelection(1, 2, 3, 4);
+	assertObjectEquals("setSelection should have set the selection to this",
+		{x1: 1, y1: 2, x2: 3, y2: 4}, grid.drag);
+	
+	ds.insert(5, beer);
+	assertObjectEquals("inserting into datasource after selected area " +
+		"should have no effect", {x1: 1, y1: 2, x2: 3, y2: 4}, grid.drag);
+	
+	ds.insert(1, beer);
+	assertObjectEquals("inserting into datasource before selected area " +
+		"should have moved selection down by 1 row",
+		{x1: 1, y1: 3, x2: 3, y2: 5}, grid.drag);
+	
+	ds.insert(3, beer);
+	assertObjectEquals("inserting into datasource just before selected " +
+		"area should have moved selection down by 1 row",
+		{x1: 1, y1: 4, x2: 3, y2: 6}, grid.drag);
+	
+	ds.insert(5, beer);
+	assertObjectEquals("inserting into datasource inside selected area " +
+		"should have moved selection end down by 1 row",
+		{x1: 1, y1: 4, x2: 3, y2: 7}, grid.drag);
+	
+	ds.insert(7, beer);
+	assertObjectEquals("inserting into datasource at end of selected area " +
+		"should have moved selection end down by 1 row",
+		{x1: 1, y1: 4, x2: 3, y2: 8}, grid.drag);
+	
+	ds.insert(9, beer);
+	assertObjectEquals("inserting into datasource after selected area " +
+		"should have no effect", {x1: 1, y1: 4, x2: 3, y2: 8}, grid.drag);
+}
 
 // TODO test that inserting a row in the middle of a selected area
 // extends the selection by 1 row, or selects the same original rows
