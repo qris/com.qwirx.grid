@@ -2,6 +2,9 @@ goog.provide('com.qwirx.grid.NavigableGrid');
 
 goog.require('com.qwirx.grid.Grid');
 goog.require('com.qwirx.grid.NavigationBar');
+goog.require('com.qwirx.ui.BorderLayout');
+goog.require('com.qwirx.ui.Renderer');
+goog.require('goog.ui.Component');
 
 /**
 	@namespace
@@ -14,13 +17,21 @@ goog.require('com.qwirx.grid.NavigationBar');
  * navigation.
  * @constructor
  */
-com.qwirx.grid.NavigableGrid = function(datasource, opt_renderer)
+com.qwirx.grid.NavigableGrid = function(datasource, opt_domHelper,
+	opt_renderer, opt_grid)
 {
-	com.qwirx.grid.NavigableGrid.superClass_.constructor.call(this,
-		datasource, opt_renderer);
+	goog.base(this, opt_domHelper);
+	this.renderer_ = opt_renderer || com.qwirx.grid.NavigableGrid.RENDERER;
+	this.layout_ = new com.qwirx.ui.BorderLayout(this.getDomHelper());
+	this.grid_ = opt_grid || new com.qwirx.grid.Grid(datasource,
+		this.getDomHelper());
+	this.nav_ = new com.qwirx.grid.NavigationBar(this.grid_.cursor_);
 };
 
-goog.inherits(com.qwirx.grid.NavigableGrid, com.qwirx.grid.Grid);
+goog.inherits(com.qwirx.grid.NavigableGrid, goog.ui.Component);
+
+com.qwirx.grid.NavigableGrid.RENDERER =
+	new com.qwirx.ui.Renderer(['com_qwirx_grid_NavigableGrid']);
 
 /**
  * Allow Grid to construct its DOM, and then rearrange it to fit
@@ -29,14 +40,15 @@ goog.inherits(com.qwirx.grid.NavigableGrid, com.qwirx.grid.Grid);
  */
 com.qwirx.grid.NavigableGrid.prototype.createDom = function()
 {
-	com.qwirx.grid.NavigableGrid.superClass_.createDom.call(this);
-	this.addClassName('fb-navigablegrid');
-		
-	this.nav_ = new com.qwirx.grid.NavigationBar(this.cursor_);
-	this.nav_.render(this.element_);
+	var elem = this.element_ = this.dom_.createDom('div',
+		this.renderer_.getClassNames(this).join(' '));
 	
-	com.qwirx.loader.loadCss('goog.closure', 'common.css',
-		'toolbar.css');
+	elem.style.height = "100%";
+	elem.style.width = "100%";
+	
+	this.addChild(this.layout_, true /* opt_render */);
+	this.layout_.addChild(this.nav_, true, 'SOUTH');
+	this.layout_.addChild(this.getGrid(), true, 'CENTER');
 };
 
 /**
@@ -45,15 +57,11 @@ com.qwirx.grid.NavigableGrid.prototype.createDom = function()
  */
 com.qwirx.grid.NavigableGrid.prototype.enterDocument = function()
 {
-	var parentHeight = this.getElement().clientHeight;
-	var navBarHeight = this.nav_.getElement().clientHeight;
-	var remainingHeight = parentHeight - navBarHeight;
-	this.scrollBarOuterDiv_.style.height = remainingHeight + "px";
-	this.dataDiv_.style.height = remainingHeight + "px";
-
-	// Create the grid display rows, using the remaining space
-	com.qwirx.grid.NavigableGrid.superClass_.enterDocument.call(this);
-	
-	this.nav_.setPageSize(this.getFullyVisibleRowCount());
+	goog.base(this, 'enterDocument');
+	this.nav_.setPageSize(this.getGrid().getFullyVisibleRowCount());
 };
 
+com.qwirx.grid.NavigableGrid.prototype.getGrid = function()
+{
+	return this.grid_;
+};

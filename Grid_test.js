@@ -51,22 +51,50 @@ function tearDown()
 	mockController.$tearDown();
 }
 
+function test_NavigableGrid_createDom()
+{
+	var grid = new com.qwirx.grid.NavigableGrid(ds);
+	grid.createDom();
+	
+	// grid container and scrolling container should fill the
+	// available space
+	var elem = grid.getElement();
+	assertEquals("Grid should fill 100% of parent element",
+		"100%", elem.style.height);
+	assertEquals("Grid should fill 100% of parent element",
+		"100%", elem.style.width);
+	
+	assertEquals("NavigableGrid should have a CSS class", 
+		"com_qwirx_grid_NavigableGrid", grid.getElement().className);
+	assertEquals("BorderLayout should have a CSS class", 
+		"com_qwirx_ui_BorderLayout", grid.layout_.getElement().className);
+	assertEquals("Grid should have a CSS class", 
+		"com_qwirx_grid_Grid", grid.grid_.getElement().className);
+}
+
 function initGrid(datasource)
 {
-	var grid = new com.qwirx.grid.NavigableGrid(datasource);
-	grid.addClassName('fb-datagrid');
-	grid.render(domContainer);
+	var navgrid = new com.qwirx.grid.NavigableGrid(datasource);
+	navgrid.render(domContainer);
+	
+	var grid = navgrid.getGrid();
 
 	// grid should initially display the top left corner
 	assertObjectEquals({x: 0, y: 0}, grid.scrollOffset_);
 	
 	// grid container and scrolling container should fill the
 	// available space
-	assertEquals('100%', grid.getElement().style.height);
+	var elem = navgrid.getElement();
+	assertEquals("Grid should fill 100% of parent element",
+		"100%", elem.style.height);
+	assertEquals("Grid should fill 100% of parent element",
+		"100%", elem.style.width);
 	
 	// data div height + nav bar height should equal total height
-	assertEquals(grid.getElement().clientHeight,
-		grid.dataDiv_.clientHeight + grid.nav_.getElement().clientHeight);
+	var navgrid_elem = navgrid.getElement();
+	var nav_elem = navgrid.nav_.getElement();
+	assertEquals(navgrid_elem.clientHeight,
+		grid.dataDiv_.clientHeight + nav_elem.clientHeight);
 	
 	// grid should not have any rows outside the visible area
 	// of the data div
@@ -84,7 +112,7 @@ function initGrid(datasource)
 	assertSelection(grid, "initial state should be no selection",
 		-1, -1, -1, -1);
 	
-	return grid;
+	return navgrid;
 }
 
 function assertSelection(grid, message, x1, y1, x2, y2)
@@ -1286,12 +1314,44 @@ function testInsertRowIntoSelectedArea()
 		"should have no effect", {x1: 1, y1: 4, x2: 3, y2: 8}, grid.drag);
 }
 
-// TODO test that inserting a row in the middle of a selected area
-// extends the selection by 1 row, or selects the same original rows
-// but not the newly added one if/when we support split selections.
-
-// TODO check that inserting a row before the selected area moves it
-// down by one row.
+function test_changing_row_height_adds_rows_when_needed()
+{
+	var grid = initGrid(ds);
+	
+	var bamboo = {
+		product: 'bamboo',
+		strength: 'Grows quickly',
+		weakness: 'Only edible in China'
+	};
+	
+	ds.insert(1, bamboo);
+	
+	for (var i = 0; grid.canAddMoreRows(); i++)
+	{
+		var container = grid.dataDiv_;
+		var oldHeight = container.clientHeight;
+		
+		bamboo.strength += "\nlonger";
+		ds.replace(1, bamboo);
+		
+		var newHeight = container.clientHeight;
+		assertTrue("grid container should be taller now",
+			newHeight > oldHeight);
+		
+		
+		if (elementPos.y + element.clientHeight >
+			containerPos.y + container.clientHeight + containerBorder.top)
+		{
+			// The last row is partially visible, so no room for more rows
+			return false;
+		}
+		
+		if (i > 10000)
+		{
+			fail("grid never filled up vertically");
+		}
+	}
+}
 
 // TODO check that updating a row that's being edited is handled
 // appropriately (what is appropriate? an exception event?)

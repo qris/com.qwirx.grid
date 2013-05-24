@@ -1,3 +1,8 @@
+.fb-grid-data
+{
+	height: 100%;
+}
+
 table.fb-grid-data-table
 {
 	border-collapse: collapse;
@@ -9,6 +14,7 @@ table.fb-grid-data-table > tr > td
 {
 	border: 1px solid #ddd;
 	padding: 0.1em 0.2em;
+	white-space: pre-wrap;
 }
 
 table.fb-grid-data-table > tr > th
@@ -94,4 +100,3 @@ table.fb-grid-data-table > tr > td
 	vertical-align: middle;
 	width: 4em;
 }
-

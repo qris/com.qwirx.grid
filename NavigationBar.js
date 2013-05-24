@@ -42,10 +42,10 @@ com.qwirx.grid.NavigationBar = function(cursor, opt_renderer,
 goog.inherits(com.qwirx.grid.NavigationBar, goog.ui.Toolbar);
 
 /**
- * @constructor
  * An exception thrown by {@link com.qwirx.grid.NavigationBar}
  * when the supplied <code>cursor_</code> argument is not a 
  * {@link com.qwirx.data.Cursor} object.
+ * @constructor
  */
 com.qwirx.grid.NavigationBar.InvalidCursor = function(cursor)
 {
@@ -154,6 +154,13 @@ com.qwirx.grid.NavigationBar.prototype.createDom = function(tab)
         
 	return element;
 };
+
+com.qwirx.grid.NavigationBar.prototype.enterDocument = function()
+{
+	goog.base(this, 'enterDocument');
+	com.qwirx.loader.loadCss('goog.closure', 'common.css',
+		'toolbar.css');
+}
 
 com.qwirx.grid.NavigationBar.prototype.sendEventOnException =
 	function(source, callback /* var_args */)

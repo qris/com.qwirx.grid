@@ -2,6 +2,7 @@ goog.provide('com.qwirx.grid.Grid');
 
 goog.require('com.qwirx.data.Cursor');
 goog.require('com.qwirx.loader');
+goog.require('com.qwirx.ui.Renderer');
 goog.require('com.qwirx.util.Array');
 goog.require('com.qwirx.util.Enum');
 goog.require('goog.ui.Control');
@@ -26,10 +27,10 @@ com.qwirx.grid.log = function(var_args)
  * supply columnised, formatted data on demand, maybe asynchronously.
  * @constructor
  */
-com.qwirx.grid.Grid = function(datasource, opt_renderer)
+com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 {
 	opt_renderer = opt_renderer || com.qwirx.grid.Grid.RENDERER;
-	goog.ui.Control.call(this, null, opt_renderer);
+	goog.ui.Control.call(this, opt_domHelper, opt_renderer);
 	
 	this.dataSource_ = datasource;
 	this.cursor_ = new com.qwirx.data.Cursor(datasource);
@@ -61,8 +62,7 @@ com.qwirx.grid.Grid.NO_SELECTION = {
 	origin: undefined, x1: -1, y1: -1, x2: -1, y2: -1
 };
 
-com.qwirx.grid.Grid.RENDERER = goog.ui.ControlRenderer.getCustomRenderer(
-	goog.ui.ControlRenderer, 'fb-grid');
+com.qwirx.grid.Grid.RENDERER = new com.qwirx.ui.Renderer(['com_qwirx_grid_Grid']);
 	
 com.qwirx.grid.Grid.prototype.createDom = function()
 {
