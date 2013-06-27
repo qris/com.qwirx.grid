@@ -3,10 +3,10 @@ goog.provide('com.qwirx.grid.Grid');
 goog.require('com.qwirx.data.Cursor');
 goog.require('com.qwirx.loader');
 goog.require('com.qwirx.ui.Renderer');
+goog.require('com.qwirx.ui.Slider');
 goog.require('com.qwirx.util.Array');
 goog.require('com.qwirx.util.Enum');
 goog.require('goog.ui.Control');
-goog.require('goog.ui.Slider');
 goog.require('goog.editor.SeamlessField');
 
 /** @define {boolean} */ com.qwirx.grid.DEBUG = true;
@@ -34,6 +34,17 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	
 	this.dataSource_ = datasource;
 	this.cursor_ = new com.qwirx.data.Cursor(datasource);
+	this.layout_ = new com.qwirx.ui.BorderLayout(this.getDomHelper());
+	
+	this.scrollBar_ = new com.qwirx.ui.Slider();
+	this.scrollBar_.setOrientation(goog.ui.Slider.Orientation.VERTICAL);
+	this.scrollBar_.setMaximum(this.dataSource_.getCount());
+	// Scrollbar value is inverted: the maximum value is at the top,
+	// which is where we want to be initially.
+	this.scrollBar_.setValue(this.dataSource_.getCount(), 0);
+	
+	this.wrapper = new goog.ui.Component();
+	
 	var self = this;
 	
 	datasource.addEventListener(
@@ -66,34 +77,22 @@ com.qwirx.grid.Grid.RENDERER = new com.qwirx.ui.Renderer(['com_qwirx_grid_Grid']
 	
 com.qwirx.grid.Grid.prototype.createDom = function()
 {
-	this.element_ = this.dom_.createDom('div',
-		this.getRenderer().getClassNames(this).join(' '));
-	this.element_.style.height = "100%";
+	var elem = this.element_ = this.dom_.createDom('div',
+		this.renderer_.getClassNames(this).join(' '));
 	
-	this.scrollBarOuterDiv_ = this.dom_.createDom('div',
-		'fb-grid-scroll-v');
-	this.element_.appendChild(this.scrollBarOuterDiv_);
+	elem.style.height = "100%";
+	elem.style.width = "100%";
 	
-	this.dataDiv_ = this.dom_.createDom('div', 'fb-grid-data');
-	this.element_.appendChild(this.dataDiv_);
+	this.addChild(this.layout_, true /* opt_render */);
+	this.layout_.addChild(this.scrollBar_, true /* opt_render */, 'EAST');
+	this.layout_.addChild(this.wrapper, true /* opt_render */, 'CENTER');
 	
-	// NavigableGrid subclass relies on the scrollBar_ property
-	// to extract our scrollbar and reparent its DOM element.
-	this.scrollBar_ = new goog.ui.Slider;
-	this.scrollBar_.decorate(this.scrollBarOuterDiv_);
-	this.scrollBar_.setOrientation(goog.ui.Slider.Orientation.VERTICAL);
-	this.scrollBar_.setMaximum(this.dataSource_.getCount());
+	this.wrapper.getElement().className = 'fb-grid-data';
 	
-	// Scrollbar value is inverted: the maximum value is at the top,
-	// which is where we want to be initially.
-	this.scrollBar_.setValue(this.dataSource_.getCount(), 0);
-	
-	// NavigableGrid subclass relies on the dataTable_ property
-	// to extract our grid table and reparent it.
 	this.dataTable_ = this.dom_.createDom('table',
 		{'class': 'fb-grid-data-table'});
 	this.dataTable_.id = goog.string.createUniqueString();
-	this.dataDiv_.appendChild(this.dataTable_);
+	this.wrapper.getElement().appendChild(this.dataTable_);
 	
 	this.columns_ = [];
 	this.rows_ = [];
@@ -117,10 +116,9 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 		return;
 	}
 	
-	var container = this.dataDiv_;
+	var container = this.wrapper.getElement();
 	var containerPos = goog.style.getPageOffset(container);
 	var containerBorder = goog.style.getBorderBox(container);	
-	this.partialLastRow = false;	
 	
 	var columns = this.dataSource_.getColumns();
 	var numCols = columns.length;
@@ -141,15 +139,10 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	
 	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
 	this.dataTable_.appendChild(this.headerRow_);
-	
-	this.partialLastRow = false;
-	
-	for (var i = 0; i < this.dataSource_.getCount() && !this.partialLastRow;
-		 i++)
-	{
-		this.addRow();
-	}
-	
+
+	// Add all required data rows
+	this.updateRowVisibility();
+
 	// Scrollbar value is inverted: the maximum value is at the top,
 	// which is where we want to be initially.
 	
@@ -177,31 +170,19 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 
 com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
 {
-	// If we don't have any rows, the answer must be "yes!"
+	return this.rows_[this.rows_.length - 1].isFullyVisible();
+};
+
+com.qwirx.grid.Grid.prototype.isPartialLastRow = function()
+{
+	// If we don't have any rows, the answer must be "no!"
 	if (this.rows_.length == 0)
 	{
-		return true;
+		return false;
 	}
 	
 	var lastRow = this.rows_[this.rows_.length - 1];
-	var element = lastRow.getRowElement();
-	var elementPos = goog.style.getPageOffset(element);
-	
-	var container = this.dataDiv_;
-	var containerPos = goog.style.getPageOffset(container);
-	var containerBorder = goog.style.getBorderBox(container);	
-	
-	if (elementPos.y + element.clientHeight >
-		containerPos.y + container.clientHeight + containerBorder.top)
-	{
-		// The last row is partially visible, so no room for more rows
-		return false;
-	}
-	else
-	{
-		// The last row is fully visible, so there is room for more rows
-		return true;
-	}
+	return !(lastRow.isFullyVisible());
 };
 
 com.qwirx.grid.Grid.prototype.addRow = function()
@@ -228,11 +209,6 @@ com.qwirx.grid.Grid.prototype.addRow = function()
 	{
 		// emergency brakes!
 		throw new Error("Emergency brakes!");
-	}
-	
-	if (!this.canAddMoreRows())
-	{
-		this.partialLastRow = true;
 	}
 };
 
@@ -315,6 +291,43 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex)
 	this.tableRowElement_.id = "row_" + rowIndex;
 };
 
+com.qwirx.grid.Grid.Row.prototype.isVisibleInternal = function(include_partial)
+{
+	var element = this.getRowElement();
+	if (!this.isVisible())
+	{
+		return false;
+	}
+	
+	var elementPos = goog.style.getPageOffset(element);
+	
+	var container = this.grid_.wrapper.getElement();
+	var containerPos = goog.style.getPageOffset(container);
+	var containerBorder = goog.style.getBorderBox(container);	
+	
+	if (elementPos.y + (include_partial ? 0 : element.clientHeight) >
+		containerPos.y + container.clientHeight + containerBorder.top)
+	{
+		// the row (top/bottom) is hidden (not visible)
+		return false;
+	}
+	else
+	{
+		// the row (top/bottom) is visible
+		return true;
+	}
+};
+
+com.qwirx.grid.Grid.Row.prototype.isFullyVisible = function()
+{
+	return this.isVisibleInternal(false);
+};
+
+com.qwirx.grid.Grid.Row.prototype.isPartiallyVisible = function()
+{
+	return this.isVisibleInternal(true);
+};
+
 com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 {
 	var th = this.tableCell_;
@@ -394,10 +407,22 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
 		return;
 	}
 	
+	// May change the number of rows
+	this.updateRowVisibility();
+	
 	var rowCount = this.dataSource_.getCount();
 	var newMax = 0;
 	
-	if (rowCount <= this.getFullyVisibleRowCount())
+	if (!this.rows_[this.rows_.length - 1].isVisible())
+	{
+		// If some rows are hidden, then we have more than enough rows to
+		// display all the available data, so we should not allow scrolling
+		// to any more than the current scroll position. In a sense we've
+		// scrolled too far, but we don't want to arbitrarily scroll around 
+		// without permission (do we?)
+		newMax = this.scrollOffset_.y;
+	}
+	else if (rowCount <= this.getFullyVisibleRowCount())
 	{
 		// Leave the maximum to 0 to disable scrolling.
 	}
@@ -556,12 +581,6 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 		this.handleRowUpdate(i + scroll.y);
 	}
 	
-	// May need another row, and now we have data to fill it
-	if (!this.partialLastRow)
-	{
-		this.addRow();
-	}
-	
 	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
 	{
 		if (this.drag.y1 < newRowIndex && this.drag.y2 < newRowIndex)
@@ -585,6 +604,10 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 	}
 	
 	this.updateSelection_(false);
+	
+	// Note: we rely on the datasource to send us a
+	// com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE event, to cause us
+	// to call refreshAll() and update the scroll bar.
 };
 
 /*
@@ -613,6 +636,9 @@ com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 		var row = this.rows_[gridRowIndex];
 		goog.asserts.assert(row, "Where is row " + gridRowIndex + "?");
 		
+		// If the row is off screen, just delete it
+		
+		
 		var columns = this.dataSource_.getColumns();
 		var colValues = [];
 		
@@ -629,11 +655,28 @@ com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 	{
 		// not displayed, nothing to do
 	}
+	
+	// Mute events to avoid an infinite loop where we end up calling
+	// refreshAll() which calls handleRowUpdate() again
+	var oldMute = this.scrollBar_.rangeModel.mute_;
+	this.scrollBar_.rangeModel.setMute(true);
+	var oldScroll = this.scrollOffset_.y;
+	var newMax = this.dataSource_.getCount() -
+		this.getFullyVisibleRowCount();
+	this.scrollBar_.setMaximum(newMax);
+	this.scrollBar_.setValue(newMax - oldScroll);
+	this.scrollBar_.rangeModel.setMute(oldMute);
 };
 
 com.qwirx.grid.Grid.prototype.getVisibleRowCount = function()
 {
-	return this.rows_.length;
+	for (var i = this.rows_.length - 1; i >= 0; i--)
+	{
+		if (this.rows_[i].isPartiallyVisible())
+		{
+			return i + 1;
+		}
+	}
 };
 
 /**
@@ -642,13 +685,12 @@ com.qwirx.grid.Grid.prototype.getVisibleRowCount = function()
  */
 com.qwirx.grid.Grid.prototype.getFullyVisibleRowCount = function()
 {
-	if (this.partialLastRow)
+	for (var i = this.rows_.length - 1; i >= 0; i--)
 	{
-		return this.rows_.length - 1;
-	}
-	else
-	{
-		return this.rows_.length;
+		if (this.rows_[i].isFullyVisible())
+		{
+			return i + 1;
+		}
 	}
 };
 
@@ -1137,6 +1179,26 @@ com.qwirx.grid.Grid.prototype.handleMouseOut = function(e)
 	}
 };
 
+com.qwirx.grid.Grid.prototype.updateRowVisibility = function()
+{
+	var len = this.rows_.length;
+	var recordCount = this.dataSource_.getCount();
+	
+	for (var i = 0; i < len; i++)
+	{
+		var dataRow = i + this.scrollOffset_.y;
+		var visible = (dataRow < recordCount);
+		this.rows_[i].setVisible(visible);
+	}
+	
+	// May need to add rows, if we have enough data to fill them
+	for (var i = this.rows_.length + this.scrollOffset_.y;
+		i < recordCount && !this.isPartialLastRow(); i++)
+	{
+		this.addRow(); // also populates the new row
+	}
+};
+
 /**
  * Reloads all the data in all cells in the grid. It does not
  * change the highlight rules. If you want that, you need to call
@@ -1152,16 +1214,15 @@ com.qwirx.grid.Grid.prototype.handleMouseOut = function(e)
  */
 com.qwirx.grid.Grid.prototype.refreshAll = function()
 {
+	this.updateRowVisibility();
+	
 	var len = this.rows_.length;
 	
 	for (var i = 0; i < len; i++)
 	{
-		var dataRow = i + this.scrollOffset_.y;
-		var visible = (dataRow < this.dataSource_.getCount());
-		this.rows_[i].setVisible(visible);
-		
-		if (visible)
+		if (this.rows_[i].isVisible())
 		{
+			var dataRow = i + this.scrollOffset_.y;
 			this.handleRowUpdate(dataRow);
 		}
 	}
@@ -1172,6 +1233,11 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 com.qwirx.grid.Grid.Row.prototype.setVisible = function(visible)
 {
 	this.grid_.renderer_.setVisible(this.getRowElement(), visible);
+};
+
+com.qwirx.grid.Grid.Row.prototype.isVisible = function()
+{
+	return this.grid_.renderer_.isVisible(this.getRowElement());
 };
 
 com.qwirx.grid.Grid.prototype.handleScrollEvent = function(e)

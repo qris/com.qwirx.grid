@@ -18,17 +18,14 @@ goog.require('goog.ui.Component');
  * @constructor
  */
 com.qwirx.grid.NavigableGrid = function(datasource, opt_domHelper,
-	opt_renderer, opt_grid)
+	opt_renderer)
 {
-	goog.base(this, opt_domHelper);
-	this.renderer_ = opt_renderer || com.qwirx.grid.NavigableGrid.RENDERER;
-	this.layout_ = new com.qwirx.ui.BorderLayout(this.getDomHelper());
-	this.grid_ = opt_grid || new com.qwirx.grid.Grid(datasource,
-		this.getDomHelper());
-	this.nav_ = new com.qwirx.grid.NavigationBar(this.grid_.cursor_);
+	goog.base(this, datasource, opt_domHelper, opt_renderer ||
+		com.qwirx.grid.NavigableGrid.RENDERER);
+	this.nav_ = new com.qwirx.grid.NavigationBar(this.cursor_);
 };
 
-goog.inherits(com.qwirx.grid.NavigableGrid, goog.ui.Component);
+goog.inherits(com.qwirx.grid.NavigableGrid, com.qwirx.grid.Grid);
 
 com.qwirx.grid.NavigableGrid.RENDERER =
 	new com.qwirx.ui.Renderer(['com_qwirx_grid_NavigableGrid']);
@@ -40,15 +37,8 @@ com.qwirx.grid.NavigableGrid.RENDERER =
  */
 com.qwirx.grid.NavigableGrid.prototype.createDom = function()
 {
-	var elem = this.element_ = this.dom_.createDom('div',
-		this.renderer_.getClassNames(this).join(' '));
-	
-	elem.style.height = "100%";
-	elem.style.width = "100%";
-	
-	this.addChild(this.layout_, true /* opt_render */);
-	this.layout_.addChild(this.nav_, true, 'SOUTH');
-	this.layout_.addChild(this.getGrid(), true, 'CENTER');
+	goog.base(this, 'createDom');
+	this.layout_.addChild(this.nav_, true /* opt_render */, 'SOUTH');
 };
 
 /**
@@ -58,10 +48,5 @@ com.qwirx.grid.NavigableGrid.prototype.createDom = function()
 com.qwirx.grid.NavigableGrid.prototype.enterDocument = function()
 {
 	goog.base(this, 'enterDocument');
-	this.nav_.setPageSize(this.getGrid().getFullyVisibleRowCount());
-};
-
-com.qwirx.grid.NavigableGrid.prototype.getGrid = function()
-{
-	return this.grid_;
+	this.nav_.setPageSize(this.getFullyVisibleRowCount());
 };

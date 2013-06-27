@@ -68,8 +68,6 @@ function test_NavigableGrid_createDom()
 		"com_qwirx_grid_NavigableGrid", grid.getElement().className);
 	assertEquals("BorderLayout should have a CSS class", 
 		"com_qwirx_ui_BorderLayout", grid.layout_.getElement().className);
-	assertEquals("Grid should have a CSS class", 
-		"com_qwirx_grid_Grid", grid.grid_.getElement().className);
 }
 
 function initGrid(datasource)
@@ -77,7 +75,7 @@ function initGrid(datasource)
 	var navgrid = new com.qwirx.grid.NavigableGrid(datasource);
 	navgrid.render(domContainer);
 	
-	var grid = navgrid.getGrid();
+	var grid = navgrid;
 
 	// grid should initially display the top left corner
 	assertObjectEquals({x: 0, y: 0}, grid.scrollOffset_);
@@ -87,20 +85,19 @@ function initGrid(datasource)
 	var elem = navgrid.getElement();
 	assertEquals("Grid should fill 100% of parent element",
 		"100%", elem.style.height);
-	assertEquals("Grid should fill 100% of parent element",
-		"100%", elem.style.width);
 	
 	// data div height + nav bar height should equal total height
 	var navgrid_elem = navgrid.getElement();
 	var nav_elem = navgrid.nav_.getElement();
-	assertEquals(navgrid_elem.clientHeight,
-		grid.dataDiv_.clientHeight + nav_elem.clientHeight);
+	var data_elem = grid.wrapper.getElement();
+	assertEquals(navgrid_elem.offsetHeight /* includes borders */,
+		data_elem.offsetHeight + nav_elem.offsetHeight);
 	
 	// grid should not have any rows outside the visible area
 	// of the data div
 	var rows = grid.dataTable_.children[0].children;
 	var lastRow = rows[rows.length - 1];
-	var container = grid.dataDiv_;
+	var container = grid.wrapper.getElement();
 	var containerPos = goog.style.getPageOffset(container);
 	var lastRowPos = goog.style.getPageOffset(lastRow);
 	var remainingSpace = (containerPos.y + container.clientHeight) -
@@ -417,6 +414,8 @@ function testGridInsertRowAt()
 	
 	function assertCellContentsAndSelection(rowIndex, contents)
 	{
+		com.qwirx.test.assertGreaterThan(grid.rows_.length, rowIndex,
+			"Not enough rows in the grid");
 		var scroll = grid.scrollOffset_;
 		assertEquals("Grid seems to be displaying the wrong data row " +
 			"on table row " + rowIndex, rowIndex + scroll.y,
@@ -450,10 +449,15 @@ function testGridInsertRowAt()
 	
 	// Test that inserting a row when scrolled also works
 	grid.setScroll(0, 1);
+	assertEquals("Grid's cursor should be positioned at row 2 before " +
+		"inserting data", 2, grid.cursor_.getPosition());
 	ds.insert(2, 
 		{product: 'wine',
 			strength: 'Traditional Roman drink, tasty',
 			weakness: 'Hangovers, expensive'});
+	assertEquals("Grid's cursor should be positioned at row 3 after " +
+		"inserting data before the current row", 3,
+		grid.cursor_.getPosition());
 	assertCellContentsAndSelection(0, "beer");
 	assertCellContentsAndSelection(1, "wine");
 	assertCellContentsAndSelection(2, oldRow1.product);
@@ -468,6 +472,11 @@ function testGridInsertRowAt()
 	assertCellContentsAndSelection(4, ds.get(4).product);
 	assertCellContentsAndSelection(5, ds.get(5).product);
 	
+	// Need to moveFirst() before adding rows, otherwise we'll end up
+	// scrolling to keep the current record visible, which will break the
+	// following tests that assume that we're not scrolled.
+	grid.getCursor().moveFirst();
+	
 	// Keep adding rows until the grid stops adding rows to match,
 	// because it can't display any more.
 	assertEquals("Can't test that grid stops adding rows unless the " +
@@ -480,32 +489,56 @@ function testGridInsertRowAt()
 			throw new Error("emergency brakes!");
 		}
 		
-		ds.insert(3, {product: 'new product ' + i,
-			strength: 'Better than product ' + (i-1),
-			weakness: 'Soon to be obsolete'});
+		// If there are enough rows in the Datasource, then the Grid
+		// will always keep adding rows until isPartialLastRow() is true.
+		// Because it's not true, that should mean that there are not
+		// enough records in the datasource to fill the screen, so all
+		// records are visible and scrolling is impossible.
 		
-		if (grid.partialLastRow)
+		assertEquals("all virtual grid rows are at least partially visible " +
+			"on screen, so the number of grid rows should equal datasource " +
+			"rows", ds.getCount(), grid.getVisibleRowCount());
+		
+		if(grid.isPartialLastRow())
 		{
+			// last time around; we'll exit the loop after adding another row,
+			// because the grid isn't keeping up.
+			assertEquals("the last physical grid row is partially hidden, " +
+				"so the fully visible row count should be one less than " +
+				"the partially visible row count", 1,
+				grid.getVisibleRowCount() - grid.getFullyVisibleRowCount());
 			assertEquals("the last physical grid row is partially hidden, " +
 				"so the scroll bar should be enabled to allow access to it",
 				ds.getCount() - grid.getFullyVisibleRowCount(),
 				grid.scrollBar_.getMaximum());
 		}
 		else
-		{
-			assertEquals("all physical grid rows are visible on screen , " +
-				"so the scroll bar should not be usable", 0, 
-				grid.scrollBar_.getMaximum());
-			assertEquals("all physical grid rows are visible on screen , " +
+		{	
+			assertEquals("all virtual grid rows are visible on screen, " +
 				"so the number of grid rows should equal datasource rows",
 				ds.getCount(), grid.getFullyVisibleRowCount());
+			assertEquals("all virtual grid rows are fully visible, " +
+				"so the scroll bar should not be usable", 0,
+				grid.scrollBar_.getMaximum());
 		}
+		
+		ds.insert(3, {product: 'new product ' + i,
+			strength: 'Better than product ' + (i-1),
+			weakness: 'Soon to be obsolete'});
+		assertEquals("Inserting a row should not have caused the grid " +
+			"to scroll", 0, grid.scrollOffset_.y);
 	}
+	
+	assertTrue(grid.isPartialLastRow());
+	assertEquals("the last physical grid row is partially hidden, " +
+		"so the scroll bar should be enabled to allow access to it",
+		ds.getCount() - grid.getFullyVisibleRowCount(),
+		grid.scrollBar_.getMaximum());
 }
 
 function assertGridContents(grid, data)
 {
-	self.assertEquals('Wrong number of rows in grid',
+	assertEquals('Wrong number of rows in grid',
 		data.length, grid.getVisibleRowCount());
 
 	for (var rowIndex = 0; rowIndex < data.length; rowIndex++)
@@ -514,7 +547,7 @@ function assertGridContents(grid, data)
 		for (var colIndex = 0; colIndex < rowData.length; colIndex++)
 		{
 			var cell = grid.rows_[rowIndex].getColumns()[colIndex].tableCell;
-			self.assertEquals('Wrong value for row ' + rowIndex +
+			assertEquals('Wrong value for row ' + rowIndex +
 				' column ' + colIndex,
 				rowData[colIndex].value.toString(), cell.innerHTML);
 		}
@@ -537,12 +570,12 @@ function testGridDataSourceEvents()
 	
 	var oldValue = data[1][1];
 	data[1].firstname = 'Atreides';
-	self.assertNotEquals('The data source should contain a ' +
+	assertNotEquals('The data source should contain a ' +
 		'deep copy of the data, not affected by external changed',
 		'Atreides', ds.get(1).firstname);
 
 	data[1].firstname = 'Leto';
-	self.assertNotEquals('The data source should contain a ' +
+	assertNotEquals('The data source should contain a ' +
 		'deep copy of the data, not affected by external changed',
 		'Leto', ds.get(1).firstname);
 	data[1].firstname = oldValue;
@@ -635,13 +668,17 @@ function testGridRespondsToDataSourceRowCountChanges()
 		com.qwirx.grid.Grid.NO_SELECTION, grid.drag);
 	assertTrue("The following tests will fail unless at least " +
 		"one row is visible",
-		ds.getCount() < grid.getVisibleRowCount());
+		grid.getVisibleRowCount() > 0);
 	assertEquals(0, grid.scrollBar_.getMaximum());
 	assertEquals(0, grid.scrollOffset_.x);
 	assertEquals(0, grid.scrollOffset_.y);
 	assertGridRowsVisible(grid, 1);
 
-	ds.setRowCount(grid.getFullyVisibleRowCount() + 1);
+	// Keep adding rows until they can't all be displayed
+	while (grid.getFullyVisibleRowCount() == ds.getCount())
+	{
+		ds.setRowCount(ds.getCount() + 1);
+	}
 	assertEquals("Grid with datasource with 1 row more available " +
 		"than visible should allow scrolling by 1 row", 1,
 		grid.scrollBar_.getMaximum());
@@ -667,14 +704,14 @@ function testGridRespondsToDataSourceRowCountChanges()
 	// Changing datasource row count so that grid has fewer rows
 	// should not change position.
 	ds.setRowCount(grid.getFullyVisibleRowCount());
-	assertEquals(0, grid.scrollBar_.getMaximum());
+	assertEquals(1, grid.scrollBar_.getMaximum());
 	assertEquals(0, grid.scrollOffset_.x);
 	assertEquals(1, grid.scrollOffset_.y);
 	// Slider is inverted, so 0 is at the bottom.
 	assertEquals("The vertical scrollbar should be out of sync " +
 		"with the grid contents, because the original scroll " +
 		"position is no longer valid", 0, grid.scrollBar_.getValue());
-	assertGridRowsVisible(grid, grid.getFullyVisibleRowCount() - 1);
+	assertGridRowsVisible(grid, ds.getCount() - 1);
 
 	// Same with just one row visible.
 	ds.setRowCount(grid.scrollOffset_.y + 1);
@@ -791,12 +828,15 @@ function testGridScrollAndHighlight()
 	// may be only partially visible, so you might have to scroll
 	// to see it.
 	ds.setRowCount(gridRows - 1); // but the first two are offscreen
-	assertEquals("row count change should have reset scrollbar " +
-		"maximum to zero, as scrolling is no longer possible",
-		0, scrollbar.getMaximum());
-	assertEquals("row count change should have adjusted scrollbar " +
-		"value to 0 to stay between minimum and maximum",
-		0, scrollbar.getValue());
+	assertEquals("row count change should not have changed scrollbar " +
+		"maximum, as the old position is still valid", 2,
+		scrollbar.getMaximum());
+	assertEquals("row count change should have left scrollbar at the " +
+		"extreme bottom (minimum) value, as the old position is still " +
+		"valid, but only just", 0, scrollbar.getValue());
+	assertEquals("row count change should not have changed scroll offset, " +
+		"as the old position is still valid", 2,
+		grid.scrollOffset_.y);
 	assertSelection(grid, "shrinking datasource should have shrunk " +
 		"selection", 1, 1, 2, gridRows - 2);
 	
@@ -805,12 +845,12 @@ function testGridScrollAndHighlight()
 	assertObjectEquals({x: 0, y: 2}, grid.scrollOffset_);
 	assertObjectEquals(range(2, gridRows - 2), ds.requestedRows);
 	
-	// but any attempt to set the value should cause the grid's
-	// scroll offset to jump back to 0
+	// a CHANGE event should not cause either the scrollbar value or the
+	// grid's scroll offset to change.
 	ds.requestedRows = [];
 	grid.scrollBar_.dispatchEvent(goog.ui.Component.EventType.CHANGE);
-	assertObjectEquals({x: 0, y: 0}, grid.scrollOffset_);
-	assertObjectEquals(range(0, gridRows - 2), ds.requestedRows);	
+	assertObjectEquals({x: 0, y: 2}, grid.scrollOffset_);
+	assertObjectEquals(range(2, gridRows - 2), ds.requestedRows);
 
 	// reset for manual testing, playing and demos
 	var dataRows = 10000;
@@ -962,6 +1002,11 @@ function assertNavigateGrid(grid, startPosition, button,
 	assertEquals("starting position text field contents",
 		startPosition + "", grid.nav_.rowNumberField_.getValue());
 	
+	var rows = grid.dataSource_.getCount();
+	assertEquals("scroll bar maximum should allow full access to all " +
+		"fully visible rows", rows - grid.getFullyVisibleRowCount(), 
+		grid.scrollBar_.getMaximum());
+	
 	// button states should be correct before navigating
 	assertNavigationButtonStates(grid);
 	
@@ -990,6 +1035,9 @@ function assertNavigateGrid(grid, startPosition, button,
 	assertEquals(positionMessage, expectedPosition,
 		grid.nav_.getCursor().getPosition());
 	assertEquals(scrollMessage, expectedScroll, grid.scrollOffset_.y);
+	assertEquals("scroll bar maximum should still be the same, to allow " +
+		"full access to all rows", rows - grid.getFullyVisibleRowCount(),
+		grid.scrollBar_.getMaximum());
 	assertEquals("final scroll bar position",
 		grid.scrollBar_.getMaximum() - expectedScroll,
 		grid.scrollBar_.getValue());
@@ -1245,7 +1293,7 @@ function testGridRowsAreAllOnScreen()
 {
 	var tds = new TestDataSource();
 	var grid = initGrid(tds);
-	var outer = grid.dataDiv_;
+	var outer = grid.wrapper.getElement();
 	
 	for (var i = 0; i < grid.rows_.length; i++)
 	{
@@ -1256,7 +1304,7 @@ function testGridRowsAreAllOnScreen()
 			(outer.offsetTop + outer.offsetHeight),
 			elem.offsetTop <= outer.offsetTop + outer.offsetHeight);
 		var expectOverflow = (i == grid.rows_.length - 1 &&
-			grid.partialLastRow);
+			grid.isPartialLastRow());
 		assertEquals("row " + i + " bottom " +
 			(elem.offsetTop + elem.offsetHeight) + " should " +
 			(expectOverflow ? "not " : "") + "be less than " +
@@ -1317,6 +1365,7 @@ function testInsertRowIntoSelectedArea()
 function test_changing_row_height_adds_rows_when_needed()
 {
 	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
 	
 	var bamboo = {
 		product: 'bamboo',
@@ -1325,26 +1374,95 @@ function test_changing_row_height_adds_rows_when_needed()
 	};
 	
 	ds.insert(1, bamboo);
+	var newCount = ds.getCount();
+	assertEquals("We just added a row, so the datasource should have " +
+		"one more row than before", oldCount + 1, newCount);
 	
-	for (var i = 0; grid.canAddMoreRows(); i++)
+	var oldScroll = grid.scrollOffset_.y;
+	assertEquals(0, oldScroll);
+	assertEquals(0, grid.scrollBar_.getMaximum());
+	
+	for (var i = 0;; i++)
 	{
-		var container = grid.dataDiv_;
-		var oldHeight = container.clientHeight;
+		var wrapper = grid.wrapper.getElement();
+		
+		var lastRowIndex = grid.rows_.length - 1;
+		var lastRow = grid.rows_[lastRowIndex].getRowElement();
+		var lastRowPos = goog.style.getPageOffset(lastRow);
+		var wrapperPos = goog.style.getPageOffset(wrapper);
+		
+		if (wrapperPos.y + wrapper.clientHeight < lastRowPos.y)
+		{
+			// The last row should be fully hidden. 
+			assertEquals("One record in the Datasource should be partially hidden",
+				ds.getCount() - 1, grid.getVisibleRowCount());
+			assertEquals("One record in the Datasource should be fully hidden",
+				// Depending on whether the last visible row happens to fit
+				// exactly into the available space, the fully visible row
+				// count might be the same as the partially visible, or not.
+				ds.getCount() -
+				(grid.rows_[grid.rows_.length - 2].isFullyVisible() ? 1 : 2),
+				grid.getFullyVisibleRowCount());
+			break;
+		}			
+		else if (wrapperPos.y + wrapper.clientHeight <
+			lastRowPos.y + lastRow.clientHeight)
+		{
+			assertFalse("The last row is no longer fully visible, so " +
+				"grid.canAddMoreRows() should return false", 
+				grid.canAddMoreRows());
+			
+			assertTrue("The last physical grid row is partially hidden, and " +
+				"the grid should know it", grid.isPartialLastRow());
+			
+			assertEquals("All records in the Datasource should be at least " +
+				"partially visible", newCount, grid.getVisibleRowCount());
+			
+			assertEquals("The last physical grid row is partially hidden, so " +
+				"the fully visible row count should be 1 less than the total " +
+				"row count", newCount - 1, grid.getFullyVisibleRowCount());
+			
+			assertEquals("The last physical grid row is partially hidden, so " +
+				"the scroll bar should be configured to allow access to it",
+				1, grid.scrollBar_.getMaximum());
+		}
+		else
+		{
+			assertTrue("The last row is still fully visible, so " +
+				"grid.canAddMoreRows() should return true",
+				grid.canAddMoreRows());
+			
+			assertFalse("The last physical grid row is fully visible, and " +
+				"the grid should know it", grid.isPartialLastRow());
+			
+			assertEquals("All records in the Datasource should be at least " +
+				"partially visible", newCount, grid.getVisibleRowCount());
+			
+			assertEquals("All records in the Datasource should be at least " +
+				"fullyvisible", newCount, grid.getFullyVisibleRowCount());
+			
+			assertEquals("The last physical grid row is fully visible, so " +
+				"the scroll bar should be configured not to allow scrolling",
+				0, grid.scrollBar_.getMaximum());
+		}
+		
+		var table = grid.dataTable_;
+		var oldHeight = table.clientHeight;
 		
 		bamboo.strength += "\nlonger";
 		ds.replace(1, bamboo);
 		
-		var newHeight = container.clientHeight;
-		assertTrue("grid container should be taller now",
-			newHeight > oldHeight);
+		var newScroll = grid.scrollOffset_.y;
+		assertEquals("The grid's scroll should not have changed by " +
+			"changing row contents", 0, newScroll);
 		
+		assertEquals("The scroll bar is inverted, and should still be " +
+			"positioned at the top (maximum)", grid.scrollBar_.getMaximum(),
+			grid.scrollBar_.getValue());
 		
-		if (elementPos.y + element.clientHeight >
-			containerPos.y + container.clientHeight + containerBorder.top)
-		{
-			// The last row is partially visible, so no room for more rows
-			return false;
-		}
+		var newHeight = table.clientHeight;
+		com.qwirx.test.assertGreaterThan(newHeight, oldHeight,
+			"grid container should be taller now");
 		
 		if (i > 10000)
 		{
