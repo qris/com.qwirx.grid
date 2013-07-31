@@ -178,8 +178,12 @@ function testGridHighlightModeCells()
 	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 1).tableCell);
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
 	assertEquals(true, grid.isAllowTextSelection());
+	var cell = grid.getCell(0, 0).tableCell;
 	assertEquals("Original cell should still be editable",
-		"true", grid.getCell(0, 0).tableCell.contentEditable);
+		"true", cell.contentEditable);
+	var userSelect = goog.style.getComputedStyle(cell, 'webkitUserSelect');
+	assertEquals("If webkitUserSelect is 'none' then controls in the " +
+		"BorderLayout won't be usable/editable", "text", userSelect);
 
 	// simulate MOUSEOUT to change the drag mode from TEXT to CELLS
 	// this is the original starting cell, and leaving it does change mode
