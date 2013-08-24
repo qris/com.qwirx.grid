@@ -185,6 +185,13 @@ com.qwirx.grid.Grid.prototype.isPartialLastRow = function()
 	return !(lastRow.isFullyVisible());
 };
 
+/**
+ * @private
+ * An internal function that's called by
+ * {com.qwirx.grid.Grid#updateRowVisibility} to add more physical (table)
+ * rows to the Grid, in order to be able to display more data at a time,
+ * for example when the physical (pixel) size of the Grid changes.
+ */
 com.qwirx.grid.Grid.prototype.addRow = function()
 {
 	var newRowIndex = this.rows_.length;
@@ -291,6 +298,13 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex)
 	this.tableRowElement_.id = "row_" + rowIndex;
 };
 
+/**
+ * @return true if the Row is visible in the container.
+ * @param {boolean} include_partial true if you want this method to return
+ * true if the row is only partially visible (partially outside the
+ * container); false if you only want it to return true if the row is entirely
+ * visible (fully inside the container).
+ */
 com.qwirx.grid.Grid.Row.prototype.isVisibleInternal = function(include_partial)
 {
 	var element = this.getRowElement();
@@ -399,7 +413,24 @@ com.qwirx.grid.Grid.Row.prototype.getColumns = function()
 	return this.columns_;
 };
 
+/**
+ * Event handler for any notification from the data source that the
+ * number of rows (i.e. the result of calling 
+ * <code>this.dataSource_.getCount()</code> has changed.
+ * @param {com.qwirx.data.Datasource.RowEvent} the event object.
+ */
 com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
+{
+	this.onRowCountChange(new com.qwirx.grid.Grid.Event.RowCountChange(e.getAffectedRows()));
+};
+
+/**
+ * Event handler for any notification from the application that the
+ * number of rows (i.e. the result of calling 
+ * <code>this.getRowCount()</code> has changed.
+ * @param {com.qwirx.grid.Grid.Event.RowCountChange} the event object.
+ */
+com.qwirx.grid.Grid.prototype.onRowCountChange = function(e)
 {
 	if (!this.isInDocument())
 	{
