@@ -38,10 +38,10 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	
 	this.scrollBar_ = new com.qwirx.ui.Slider();
 	this.scrollBar_.setOrientation(goog.ui.Slider.Orientation.VERTICAL);
-	this.scrollBar_.setMaximum(this.dataSource_.getCount());
+	this.scrollBar_.setMaximum(this.getRowCount());
 	// Scrollbar value is inverted: the maximum value is at the top,
 	// which is where we want to be initially.
-	this.scrollBar_.setValue(this.dataSource_.getCount(), 0);
+	this.scrollBar_.setValue(this.getRowCount(), 0);
 	
 	this.wrapper = new goog.ui.Component();
 	
@@ -692,8 +692,7 @@ com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 	var oldMute = this.scrollBar_.rangeModel.mute_;
 	this.scrollBar_.rangeModel.setMute(true);
 	var oldScroll = this.scrollOffset_.y;
-	var newMax = this.dataSource_.getCount() -
-		this.getFullyVisibleRowCount();
+	var newMax = this.getRowCount() - this.getFullyVisibleRowCount();
 	this.scrollBar_.setMaximum(newMax);
 	this.scrollBar_.setValue(newMax - oldScroll);
 	this.scrollBar_.rangeModel.setMute(oldMute);
@@ -728,6 +727,29 @@ com.qwirx.grid.Grid.prototype.getFullyVisibleRowCount = function()
 com.qwirx.grid.Grid.prototype.getColumnCount = function()
 {
 	return this.columns_.length;
+};
+
+/**
+ * All Grid methods should call this method to get the number of rows
+ * of data that can be displayed an accessed in the grid. If a subclass
+ * overrides this so that the number of rows can be different than that
+ * provided by the dataSource, and it detects that the number has changed,
+ * it should send a {@link com.qwirx.grid.Grid.Events.ROW_COUNT_CHANGE}
+ * event to the Grid, to allow the grid to add or delete rows, and adjust
+ * scrolling.
+ */
+com.qwirx.grid.Grid.prototype.getRowCount = function()
+{
+	var rowCount = this.dataSource_.getCount();
+	
+	if (this.isPositionedOnTemporaryNewRow)
+	{
+		return rowCount + 1;
+	}
+	else
+	{
+		return rowCount;
+	}
 };
 
 /*
@@ -792,7 +814,7 @@ com.qwirx.grid.Grid.prototype.handleMouseDown = function(e)
 		this.dragMode_ = info.drag.modes.COLUMNS;
 		this.drag.x1 = this.drag.x2 = info.col;
 		this.drag.y1 = 0;
-		this.drag.y2 = this.dataSource_.getCount() - 1;
+		this.drag.y2 = this.getRowCount() - 1;
 	}
 	else if (info.cell.type == info.cell.types.ROW_HEAD)
 	{
@@ -987,7 +1009,7 @@ com.qwirx.grid.Grid.prototype.handleDrag = function(e)
 	
 	if (info.drag.mode == info.drag.modes.COLUMNS)
 	{
-		this.drag.y2 = this.dataSource_.getCount() - 1;
+		this.drag.y2 = this.getRowCount() - 1;
 	}
 	else if (info.cell.type == info.cell.types.COLUMN_HEAD)
 	{
@@ -1213,7 +1235,7 @@ com.qwirx.grid.Grid.prototype.handleMouseOut = function(e)
 com.qwirx.grid.Grid.prototype.updateRowVisibility = function()
 {
 	var len = this.rows_.length;
-	var recordCount = this.dataSource_.getCount();
+	var recordCount = this.getRowCount();
 	
 	for (var i = 0; i < len; i++)
 	{
