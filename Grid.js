@@ -142,32 +142,22 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
 	this.dataTable_.appendChild(this.headerRow_);
 
-	// Add all required data rows
-	this.updateRowVisibility();
-
-	// Scrollbar value is inverted: the maximum value is at the top,
-	// which is where we want to be initially.
+	goog.events.listen(this, 
+		com.qwirx.grid.Grid.Events.ROW_COUNT_CHANGE, this.onRowCountChange,
+		false, this);
 	
 	// The rows have just been updated and we don't need to update
 	// them again, so we delay setting the scroll event handler
 	// until after we've done this.
-	
-	this.scrollBar_.setMaximum(this.dataSource_.getCount() -
-		this.getFullyVisibleRowCount());
-	this.scrollBar_.setValue(this.scrollBar_.getMaximum());
+
+	this.dispatchEvent(new com.qwirx.grid.Grid.Event.RowCountChange(this.getRowCount()));
 
 	this.scrollBar_.addEventListener(goog.ui.Component.EventType.CHANGE,
 		this.handleScrollEvent, /* capture */ false, this);
 	
-	/*
-	for (var eventName in com.qwirx.util.Array.withKeys('MOVE_FIRST',
-		'MOVE_BACKWARD', 'MOVE_FORWARD', 'MOVE_LAST', 'MOVE_TO'))
-	{
-	}
-	*/
 	goog.events.listen(this.cursor_, 
 		com.qwirx.data.Cursor.Events.MOVE_TO, this.onCursorMove,
-		false, this);		
+		false, this);
 };
 
 com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
