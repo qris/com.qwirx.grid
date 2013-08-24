@@ -626,7 +626,8 @@ TestDataSource.prototype.getCount = function()
 TestDataSource.prototype.setRowCount = function(newRowCount)
 {
 	this.rowCount = newRowCount;
-	this.dispatchEvent(com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE);
+	this.dispatchEvent(new com.qwirx.data.Datasource.RowEvent(
+		com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE, newRowCount));
 };
 
 TestDataSource.prototype.getColumns = function()
@@ -1039,11 +1040,17 @@ function assertNavigateGrid(grid, startPosition, button,
 	assertEquals(positionMessage, expectedPosition,
 		grid.nav_.getCursor().getPosition());
 	assertEquals(scrollMessage, expectedScroll, grid.scrollOffset_.y);
+	
+	var expectedScrollBarMaximum = rows - grid.getFullyVisibleRowCount();
+	if (expectedPosition == com.qwirx.data.Cursor.NEW)
+	{
+		expectedScrollBarMaximum++;
+	}
 	assertEquals("scroll bar maximum should still be the same, to allow " +
-		"full access to all rows", rows - grid.getFullyVisibleRowCount(),
+		"full access to all rows", expectedScrollBarMaximum,
 		grid.scrollBar_.getMaximum());
 	assertEquals("final scroll bar position",
-		grid.scrollBar_.getMaximum() - expectedScroll,
+		expectedScrollBarMaximum - expectedScroll,
 		grid.scrollBar_.getValue());
 
 	// Check that the row highlighter has been updated
@@ -1095,6 +1102,8 @@ function testGridNavigation()
 
 	var BOF = com.qwirx.data.Cursor.BOF;
 	var EOF = com.qwirx.data.Cursor.EOF;
+	var NEW = com.qwirx.data.Cursor.NEW;
+	
 	var dataRows = ds.getCount();
 	var gridRows = grid.getFullyVisibleRowCount();
 	var maxScroll = dataRows - gridRows;
@@ -1124,10 +1133,19 @@ function testGridNavigation()
 		"previous record from BOF should throw exception");
 	assertNavigateGrid(grid, BOF, grid.nav_.firstButton_, 0, 0,
 		"first record from BOF");
+	assertEquals("Grid should currently only be displaying rows from " +
+		"the data source", dataRows, grid.getRowCount());
+	assertNavigateGrid(grid, BOF, grid.nav_.newButton_, NEW, maxScroll + 1,
+		"new record from BOF");
+	assertEquals("Grid should now be displaying one more row than " +
+		"the data source contains, for the new record", dataRows + 1,
+		grid.getRowCount());
 
 	// movements from record 0
 	assertNavigateGrid(grid, 0, grid.nav_.nextButton_, 1, 0,
 		"next record from 0");
+	assertEquals("Grid should have returned to only displaying rows from " +
+		"the data source", dataRows, grid.getRowCount());
 	assertNavigateGrid(grid, 0, grid.nav_.nextPageButton_, gridRows,
 		1, "next page from 0", "moving the selection down by a " +
 		"pageful, and keeping the currently selected row visible, " +

@@ -151,6 +151,8 @@ com.qwirx.grid.NavigationBar.prototype.createDom = function(tab)
 		this.onNextPageButton);
 	this.lastButton_ = this.addButton('\u21E5' /* right arrow to bar */,
 		this.onLastButton);
+	this.newButton_ = this.addButton('\u2217' /* asterisk operator */,
+		this.onNewButton);
         
 	return element;
 };
@@ -245,6 +247,14 @@ com.qwirx.grid.NavigationBar.prototype.onLastButton = function(event)
 	this.sendEventOnException(event.target, function()
 	{
 		this.cursor_.moveLast();
+	});
+};
+
+com.qwirx.grid.NavigationBar.prototype.onNewButton = function(event)
+{
+	this.sendEventOnException(event.target, function()
+	{
+		this.cursor_.moveNew();
 	});
 };
 

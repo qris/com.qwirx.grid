@@ -65,6 +65,8 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	this.drag = com.qwirx.grid.Grid.NO_SELECTION;
 	
 	this.scrollOffset_ = { x: 0, y: 0 };
+	
+	this.isPositionedOnTemporaryNewRow = false;
 };
 
 goog.inherits(com.qwirx.grid.Grid, goog.ui.Control);
@@ -1323,13 +1325,27 @@ com.qwirx.grid.Grid.prototype.onCursorMove = function(event)
 	var lastRowVisible = oldScroll + this.getFullyVisibleRowCount() - 1;
 	var activeRow = event.newPosition;
 	
+	var wasPositionedOnTemporaryNewRow = this.isPositionedOnTemporaryNewRow;
+	this.isPositionedOnTemporaryNewRow = (activeRow == com.qwirx.data.Cursor.NEW);
+	if (wasPositionedOnTemporaryNewRow != this.isPositionedOnTemporaryNewRow)
+	{
+		// This will cause a row count change, and we need to update the
+		// maximum value of the scroll bar before calling setScroll() below.
+		this.dispatchEvent(new com.qwirx.grid.Grid.Event.RowCountChange(this.getRowCount()));
+	}
+	
 	if (activeRow == com.qwirx.data.Cursor.BOF)
 	{
 		newScroll = 0;
 	}
-	else if (activeRow == com.qwirx.data.Cursor.EOF)
+	else if (activeRow == com.qwirx.data.Cursor.EOF || 
+		activeRow == com.qwirx.data.Cursor.NEW)
 	{
-		var numRows = this.dataSource_.getCount();
+		// Treat EOF and NEW equally, because moving to NEW changes
+		// {@link com.qwirx.grid.Grid#isPositionedOnTemporaryNewRow} and
+		// therefore the value of {@link com.qwirx.grid.Grid#getRowCount}.
+		// So although the calculation is the same, the result is different.
+		var numRows = this.getRowCount();
 		if (numRows != null)
 		{
 			newScroll = numRows - this.getFullyVisibleRowCount();
@@ -1385,3 +1401,35 @@ com.qwirx.grid.Grid.prototype.getCell = function(x, y)
 	}
 }
 
+/**
+ * A base class for events that affect the whole grid.
+ * @constructor
+ */ 
+com.qwirx.grid.Grid.Event = function(type)
+{
+	goog.base(this, type);
+};
+
+goog.inherits(com.qwirx.grid.Grid.Event, goog.events.Event);
+
+com.qwirx.grid.Grid.Events = new com.qwirx.util.Enum(
+	'ROW_COUNT_CHANGE'
+);
+
+/**
+ * A base class for events that affect the whole grid.
+ * @constructor
+ */ 
+com.qwirx.grid.Grid.Event.RowCountChange = function(newRowCount)
+{
+	goog.base(this, com.qwirx.grid.Grid.Events.ROW_COUNT_CHANGE);
+	this.newRowCount = newRowCount;
+};
+
+goog.inherits(com.qwirx.grid.Grid.Event.RowCountChange,
+	com.qwirx.grid.Grid.Event);
+
+com.qwirx.grid.Grid.Event.RowCountChange.prototype.getNewRowCount = function()
+{
+	return this.newRowCount;
+}
