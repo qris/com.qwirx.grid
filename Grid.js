@@ -110,7 +110,7 @@ com.qwirx.grid.Grid.prototype.createDom = function()
  */
 com.qwirx.grid.Grid.prototype.enterDocument = function()
 {
-	com.qwirx.grid.Grid.superClass_.enterDocument.call(this);
+	goog.base(this, 'enterDocument');
 	com.qwirx.loader.loadCss('com.qwirx.grid', 'grid.css');
 
 	if (!this.cursor_)
