@@ -1493,6 +1493,14 @@ function test_changing_row_height_adds_rows_when_needed()
 	}
 }
 
+function test_empty_grid_scroll_maximum_is_valid()
+{
+	var emptyDs = new com.qwirx.data.SimpleDatasource(columns, []);
+	var grid = initGrid(emptyDs);
+	// check that the scroll maximum is valid
+	assertEquals(0, grid.getFullyVisibleRowCount());
+}
+
 // TODO check that updating a row that's being edited is handled
 // appropriately (what is appropriate? an exception event?)
 

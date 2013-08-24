@@ -436,7 +436,7 @@ com.qwirx.grid.Grid.prototype.onRowCountChange = function(e)
 	var rowCount = e.getNewRowCount();
 	var newMax = 0;
 	
-	if (!this.rows_[this.rows_.length - 1].isVisible())
+	if (this.rows_.length && !this.rows_[this.rows_.length - 1].isVisible())
 	{
 		// If some rows are hidden, then we have more than enough rows to
 		// display all the available data, so we should not allow scrolling
@@ -458,7 +458,14 @@ com.qwirx.grid.Grid.prototype.onRowCountChange = function(e)
 	// should however change position to keep at least one visible.
 	if (this.scrollOffset_.y >= rowCount)
 	{
-		this.scrollOffset_.y = rowCount - 1;
+		if (rowCount == 0)
+		{
+			this.scrollOffset_.y = 0;
+		}
+		else
+		{
+			this.scrollOffset_.y = rowCount - 1;
+		}
 	}
 
 	// if the maximum is reduced to less than the current value,
@@ -525,8 +532,9 @@ com.qwirx.grid.Grid.prototype.setScroll =
 	}
 	else
 	{
-		// setting the scrollbar value to the same value will not
+		// Setting the scrollbar value to the same value will not
 		// trigger a refreshAll, but we need it to show/hide rows.
+		// TODO could we just call the cheaper updateRowVisibility() instead?
 		this.refreshAll();
 		// {refreshAll} no longer updates the highlight rules for us,
 		// so we have to do that ourselves.
@@ -714,6 +722,9 @@ com.qwirx.grid.Grid.prototype.getFullyVisibleRowCount = function()
 			return i + 1;
 		}
 	}
+	
+	// there can't be any rows visible
+	return 0;
 };
 
 com.qwirx.grid.Grid.prototype.getColumnCount = function()
