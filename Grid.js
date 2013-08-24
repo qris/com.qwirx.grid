@@ -433,7 +433,7 @@ com.qwirx.grid.Grid.prototype.onRowCountChange = function(e)
 	// May change the number of rows
 	this.updateRowVisibility();
 	
-	var rowCount = this.dataSource_.getCount();
+	var rowCount = e.getNewRowCount();
 	var newMax = 0;
 	
 	if (!this.rows_[this.rows_.length - 1].isVisible())
