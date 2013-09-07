@@ -143,7 +143,7 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	this.dataTable_.appendChild(this.headerRow_);
 
 	goog.events.listen(this, 
-		com.qwirx.grid.Grid.Events.ROW_COUNT_CHANGE, this.onRowCountChange,
+		com.qwirx.grid.Grid.Events.ROW_COUNT_CHANGE, this.handleRowCountChange,
 		false, this);
 	
 	// The rows have just been updated and we don't need to update
@@ -413,7 +413,7 @@ com.qwirx.grid.Grid.Row.prototype.getColumns = function()
  */
 com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
 {
-	this.onRowCountChange(new com.qwirx.grid.Grid.Event.RowCountChange(e.getAffectedRows()));
+	this.handleRowCountChange(new com.qwirx.grid.Grid.Event.RowCountChange(e.getAffectedRows()));
 };
 
 /**
@@ -422,7 +422,7 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
  * <code>this.getRowCount()</code> has changed.
  * @param {com.qwirx.grid.Grid.Event.RowCountChange} the event object.
  */
-com.qwirx.grid.Grid.prototype.onRowCountChange = function(e)
+com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 {
 	if (!this.isInDocument())
 	{
