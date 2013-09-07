@@ -17,10 +17,13 @@ var domContainer = goog.dom.createDom(goog.dom.TagName.DIV,
 	'float: right;'});
 goog.dom.appendChild(document.body, domContainer);
 
-var mockController, columns, data, ds;
+var mockController, columns, data, ds, dialog_response;
+var stubs = new goog.testing.PropertyReplacer();
 
 function setUp()
 {
+	com.qwirx.ui.Dialog.isTestMode = true;
+	
 	// goog.style.setHeight(domContainer, 300);
 	domContainer.style.height = '300px';
 	domContainer.style.overflow = 'hidden';
@@ -46,9 +49,22 @@ function setUp()
 	mockController = new goog.testing.MockControl();
 }
 
+function expect_dialog(callback, response_button, listener)
+{
+	assertUndefined("The previous dialog response has not been used: " +
+		com.qwirx.ui.Dialog.dialogResponse,
+		com.qwirx.ui.Dialog.dialogResponse);
+	com.qwirx.ui.Dialog.dialogResponse = response_button;
+	callback.call(listener);
+	assertUndefined("Dialog should have been displayed, and " +
+		"com.qwirx.ui.Dialog.dialogResponse cleared",
+		com.qwirx.ui.Dialog.dialogResponse);
+}
+
 function tearDown()
 {
 	mockController.$tearDown();
+	stubs.reset();
 }
 
 function test_NavigableGrid_createDom()
@@ -1499,6 +1515,169 @@ function test_empty_grid_scroll_maximum_is_valid()
 	var grid = initGrid(emptyDs);
 	// check that the scroll maximum is valid
 	assertEquals(0, grid.getFullyVisibleRowCount());
+}
+
+function assert_setup_modified_grid_row(grid)
+{
+	if (grid.getCursor().isDirty())
+	{
+		grid.getCursor().discard();
+	}
+	
+	// grid.getCursor().moveNew();
+	com.qwirx.test.FakeClickEvent.send(grid.nav_.newButton_);
+	assertEquals(com.qwirx.data.Cursor.NEW, grid.getCursor().getPosition());
+	assertTrue(grid.isPositionedOnTemporaryNewRow);
+	
+	var rowIndex = grid.getRowCount() - grid.scrollOffset_.y - 1;
+	var cells = grid.rows_[rowIndex].getColumns();
+	
+	// fake a change to dirty the whole row
+	// grid.dispatchEvent('change', cells[0]);
+	grid.setEditableCell(cells[0].tableCell);
+	cells[0].tableCell.innerHTML = 'computers';
+	grid.editableCellField_.dispatchEvent(
+		goog.editor.Field.EventType.DELAYEDCHANGE);
+	assertTrue("Cursor should be dirty after modifying grid values",
+		grid.getCursor().isDirty());
+	assertObjectEquals("Modified values should have been copied into the Cursor",
+		{product: 'computers'}, grid.getCursor().getCurrentValues());
+}
+
+function test_grid_create_new_row_then_discard()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	
+	assert_setup_modified_grid_row(grid);
+	
+	var events = com.qwirx.test.assertEvents(grid.getCursor(),
+		[
+			com.qwirx.data.Cursor.Events.BEFORE_DISCARD,
+			com.qwirx.data.Cursor.Events.DISCARD
+		],
+		function()
+		{
+			expect_dialog(function()
+				{
+					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
+				},
+				goog.ui.Dialog.DefaultButtonKeys.CONTINUE);
+		},
+		"Moving off the NEW row should have sent a DISCARD event",
+		false, // opt_continue_if_events_not_sent
+		function (event) // opt_eventHandler
+		{
+			var expected_position = grid.getDatasource().getCount() - 1;
+			assertEquals("The requested position should be stored in the " +
+				"event object", expected_position, event.getNewPosition());
+			return true; // allows us to proceed from BEFORE_DISCARD
+		});
+	assertEquals(oldCount - 1, grid.getCursor().getPosition());
+}
+
+function assert_grid_response_to_dirty_dialog(grid, response_button,
+	expected_events)
+{
+	expected_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].concat(
+		expected_events);
+	var oldPosition = grid.getCursor().getPosition();
+	var attempted_position = grid.getDatasource().getCount() - 1;
+	
+	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
+		expected_events,
+		function()
+		{
+			expect_dialog(function()
+				{
+					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
+				},
+				response_button);
+			
+			if (response_button == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
+			{
+				assertEquals(com.qwirx.data.Cursor.NEW, 
+					grid.getCursor().getPosition());
+				assertTrue(grid.getCursor().isDirty());
+			}
+			else
+			{
+				assertEquals("Cursor should be positioned at " +
+					attempted_position + " after clicking " + response_button,
+					attempted_position, grid.getCursor().getPosition());
+				assertFalse("Cursor should no longer be dirty after " +
+					"clicking " + response_button,
+					grid.getCursor().isDirty());
+			}
+		},
+		"Moving off the NEW row and clicking " + response_button +
+			"should have sent these events",
+		false, // opt_continue_if_events_not_sent
+		function (event) // opt_eventHandler
+		{
+			if (event.type == com.qwirx.data.Cursor.Events.BEFORE_DISCARD ||
+				event.type == com.qwirx.data.Cursor.Events.DISCARD ||
+				event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
+			{
+				assertEquals("The requested position should be stored in the " +
+					"event object", attempted_position,
+				 	event.getNewPosition());
+			}
+			else if (event.type == com.qwirx.data.Cursor.Events.SAVE)
+			{
+				var newRowPosition = grid.getCursor().getRowCount();
+				assertEquals("The cursor position at SAVE time should be " +
+					"stored in the event object", newRowPosition,
+					event.getPosition());
+			}
+			
+			event.stopPropagation();
+			return false; // stop propagation of the event to the default handlers
+		});
+	
+	return actual_events;
+}
+
+function test_grid_create_new_row_then_save()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	
+	assert_setup_modified_grid_row(grid);
+	assert_grid_response_to_dirty_dialog(grid,
+		goog.ui.Dialog.DefaultButtonKeys.CANCEL,
+		[]);
+	assertEquals("There should still be " + oldCount + " real data rows, " +
+		"and one new row, accessible via the grid", oldCount + 1,
+		grid.getRowCount());
+	assertEquals(com.qwirx.data.Cursor.NEW, grid.getCursor().getPosition());
+	
+	assert_setup_modified_grid_row(grid);
+	assert_grid_response_to_dirty_dialog(grid,
+		goog.ui.Dialog.DefaultButtonKeys.CONTINUE,
+		[
+			com.qwirx.data.Cursor.Events.DISCARD,
+			com.qwirx.data.Cursor.Events.MOVE_TO
+		]);
+	assertEquals("There should still be " + oldCount + " real data rows " +
+		"and no new rows, accessible via the grid", oldCount,
+		grid.getRowCount());
+	assertEquals(oldCount - 1, grid.getCursor().getPosition());
+	
+	assert_setup_modified_grid_row(grid);
+	assert_grid_response_to_dirty_dialog(grid,
+		goog.ui.Dialog.DefaultButtonKeys.SAVE,
+		[
+			com.qwirx.data.Cursor.Events.SAVE,
+			com.qwirx.data.Cursor.Events.MOVE_TO
+		]);
+	assertEquals("There should now be " + oldCount + " real data rows, " +
+		"and no new rows, accessible via the grid", oldCount + 1,
+		grid.getRowCount());
+	assertEquals(oldCount, grid.getCursor().getPosition());
+	
+	// what happens if we sneak in changes while the modal dialog is open?
+	// what happens if we discard without navigating (opt_newPosition is null)
 }
 
 // TODO check that updating a row that's being edited is handled

@@ -2,6 +2,7 @@ goog.provide('com.qwirx.grid.Grid');
 
 goog.require('com.qwirx.data.Cursor');
 goog.require('com.qwirx.loader');
+goog.require('com.qwirx.ui.Dialog');
 goog.require('com.qwirx.ui.Renderer');
 goog.require('com.qwirx.ui.Slider');
 goog.require('com.qwirx.util.Array');
@@ -58,6 +59,9 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 		com.qwirx.data.Datasource.Events.ROWS_UPDATE,
 		function(e) { self.handleDataSourceRowsEvent(e,
 			self.handleRowUpdate); });
+	this.cursor_.addEventListener(
+		com.qwirx.data.Cursor.Events.BEFORE_DISCARD,
+		this.handleDirtyMovement, /* capture */ false, this);
 	
 	// focusing a grid isn't very useful and looks ugly in Chrome
 	this.setSupportedState(goog.ui.Component.State.FOCUSED, false);
@@ -67,6 +71,7 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	this.scrollOffset_ = { x: 0, y: 0 };
 	
 	this.isPositionedOnTemporaryNewRow = false;
+	this.currentDialog = null;
 };
 
 goog.inherits(com.qwirx.grid.Grid, goog.ui.Control);
@@ -112,6 +117,7 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 {
 	goog.base(this, 'enterDocument');
 	com.qwirx.loader.loadCss('com.qwirx.grid', 'grid.css');
+	com.qwirx.loader.loadCss('goog.closure', 'dialog.css');
 
 	if (!this.cursor_)
 	{
@@ -1455,6 +1461,90 @@ com.qwirx.grid.Grid.prototype.getCell = function(x, y)
 		return this.rows_[y].getColumns()[x];
 	}
 }
+
+/**
+ * Attempts to save changes to the currently modified record.
+ */
+com.qwirx.grid.Grid.prototype.saveChanges = function()
+{
+	this.getCursor().save();
+};
+
+/**
+ * Called when the Cursor receives a 
+ * {@link com.qwirx.data.Cursor.Events.BEFORE_DISCARD} event, which means
+ * that someone tries to move the cursor while it contained dirty data.
+ * We can handle this by offering the user the chance to save or discard
+ * their changes, or cancel the movement.
+ */
+com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
+{
+	if (this.currentDialog)
+	{
+		goog.asserts.assert(!this.currentDialog,
+			"Cannot open a new dialog when one is already open: " +
+			this.currentDialog.getContent());
+	}
+	
+	goog.asserts.assertInstanceof(e, com.qwirx.data.Cursor.MovementEvent,
+		"BEFORE_DISCARD events should always be instances of " +
+		"com.qwirx.data.Cursor.MovementEvent");
+	var newPosition = e.getNewPosition();
+	var cursor = this.getCursor();
+	
+	var dialog = new com.qwirx.ui.Dialog();
+	dialog.setContent("Moving away from a modified record will discard " +
+		"your changes.<br /><br />Do you want to move anyway, " +
+		"save your changes first, or cancel the movement?");
+	dialog.setTitle('Discard changes to current record?');
+	dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createContinueSaveCancel());
+	dialog.setParentEventTarget(this);
+	
+	goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT,
+		function(e)
+		{
+			if (e.key == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
+			{
+				// we already cancelled the movement, so nothing to do
+				return;
+			}
+			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.SAVE)
+			{
+				cursor.save();
+			}
+			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.CONTINUE)
+			{
+				cursor.discard(newPosition);
+			}
+			
+			if (newPosition)
+			{
+				// Resume the previously cancelled movement
+				cursor.setPosition(newPosition);
+			}
+		}, false /* opt_capt */, this /* opt_handler */);
+	
+	goog.events.listen(dialog, goog.ui.Dialog.EventType.AFTER_HIDE,
+		function(e)
+		{
+			this.currentDialog = null;
+		}, false /* opt_capt */, this /* opt_handler */);
+	
+	this.showDialog(dialog);
+	
+	// Cancel the BEFORE_DISCARD event, so that we can choose how to handle
+	// it when the user makes a selection, asynchronously. This will cause
+	// Cursor.maybeDiscard to throw an exception, unless we preventDefault
+	// as well.
+	e.preventDefault();
+	return false; 
+};
+
+com.qwirx.grid.Grid.prototype.showDialog = function(dialog)
+{
+	this.currentDialog = dialog;
+	dialog.setVisible(true);
+};
 
 /**
  * A base class for events that affect the whole grid.
