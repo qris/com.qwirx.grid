@@ -1563,7 +1563,9 @@ com.qwirx.grid.Grid.Events = new com.qwirx.util.Enum(
 );
 
 /**
- * A base class for events that affect the whole grid.
+ * The Grid sends itself this event when it detects that the number of
+ * displayed rows has changed. This might be due to the underlying datasource,
+ * or moving on or off a NEW record which doesn't exist in the datasource.
  * @constructor
  */ 
 com.qwirx.grid.Grid.Event.RowCountChange = function(newRowCount)
@@ -1578,4 +1580,4 @@ goog.inherits(com.qwirx.grid.Grid.Event.RowCountChange,
 com.qwirx.grid.Grid.Event.RowCountChange.prototype.getNewRowCount = function()
 {
 	return this.newRowCount;
-}
+};
