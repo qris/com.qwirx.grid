@@ -656,7 +656,35 @@ com.qwirx.grid.Grid.prototype.appendRow = function(columns)
  */
 com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 {
-	var dataObject = this.dataSource_.get(dataRowIndex);
+	var getRowDataFromCursor = null;
+	
+	if (this.isPositionedOnTemporaryNewRow &&
+		dataRowIndex == this.getRowCount() - 1)
+	{
+		// We're trying to retrieve the data for a new row, which doesn't
+		// exist in the underlying datasource, so we can't ask it. But
+		// this is only possible if the cursor is positioned on the new
+		// row, which means that we can ask the cursor for the current,
+		// temporary values.
+		
+		_assert("This should only happen if the cursor is positioned at NEW",
+			this.getCursor().getPosition() == com.qwirx.data.Cursor.NEW, 
+			'Expected ' + com.qwirx.data.Cursor.NEW + ' but was ' +
+			this.getCursor().getPosition());
+		
+		getRowDataFromCursor = com.qwirx.data.Cursor.NEW;
+	}
+	
+	var dataObject;
+	
+	if (getRowDataFromCursor !== null)
+	{
+		dataObject = this.getCursor().getCurrentValues();
+	}
+	else
+	{
+		dataObject = this.dataSource_.get(dataRowIndex);
+	}
 	
 	var scroll = this.scrollOffset_;
 	var gridRowIndex = dataRowIndex - scroll.y;
@@ -1375,6 +1403,8 @@ com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
 
 	this.setScroll(this.scrollOffset_.x, newScroll);
 	// calls refreshAll() for us
+	
+	this.dispatchEvent(com.qwirx.grid.Grid.Events.CURSOR_MOVED);
 };
 
 /**
@@ -1438,7 +1468,8 @@ com.qwirx.grid.Grid.Event = function(type)
 goog.inherits(com.qwirx.grid.Grid.Event, goog.events.Event);
 
 com.qwirx.grid.Grid.Events = new com.qwirx.util.Enum(
-	'ROW_COUNT_CHANGE'
+	'ROW_COUNT_CHANGE', 'CHANGES_SAVED', 'CHANGES_DISCARDED',
+	'CURSOR_MOVED', 'MOVEMENT_CANCELLED'
 );
 
 /**
