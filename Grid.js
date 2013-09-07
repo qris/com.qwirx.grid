@@ -156,8 +156,8 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 		this.handleScrollEvent, /* capture */ false, this);
 	
 	goog.events.listen(this.cursor_, 
-		com.qwirx.data.Cursor.Events.MOVE_TO, this.onCursorMove,
-		false, this);
+		com.qwirx.data.Cursor.Events.MOVE_TO,
+		this.handleCursorMove, /* capture */ false, this);
 };
 
 com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
@@ -1325,7 +1325,7 @@ com.qwirx.grid.Grid.prototype.getDatasource = function()
  * position row is visible, and the data displayed is correct for
  * the scroll position.
  */
-com.qwirx.grid.Grid.prototype.onCursorMove = function(event)
+com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
 {
 	var events = com.qwirx.data.Cursor.Events;
 	var oldScroll = this.scrollOffset_.y;
