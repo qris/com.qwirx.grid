@@ -1110,6 +1110,7 @@ com.qwirx.grid.Grid.prototype.setEditableCell = function(newCell)
 		this.editableCellField_.getOriginalElement() != newCell)
 	{
 		this.editableCellField_.makeUneditable();
+		goog.events.unlistenByKey(this.handleGridCellValueChange_key);
 		this.editableCellField_.dispose();
 		this.editableCellField_ = undefined;
 	}
@@ -1121,6 +1122,12 @@ com.qwirx.grid.Grid.prototype.setEditableCell = function(newCell)
 		newCell.focus();
 		com.qwirx.grid.log("set editable cell: " + newCell);
 		
+		this.handleGridCellValueChange_key = goog.events.listen(
+			this.editableCellField_,
+			goog.editor.Field.EventType.DELAYEDCHANGE,
+			this.handleGridCellValueChange, /* capture */ false, this);
+		
+		/*
 		this.editableCellField_.addEventListener(
 			goog.events.EventType.MOUSEDOWN, 
 			function(e)
@@ -1128,6 +1135,7 @@ com.qwirx.grid.Grid.prototype.setEditableCell = function(newCell)
 				com.qwirx.grid.log("captured: " +
 					e.type + ": " + e.target);
 			});
+		*/
 	}
 };
 
@@ -1367,6 +1375,22 @@ com.qwirx.grid.Grid.prototype.onCursorMove = function(event)
 
 	this.setScroll(this.scrollOffset_.x, newScroll);
 	// calls refreshAll() for us
+};
+
+/**
+ * Called when the Grid receives an event from a {goog.editor.SeamlessField}
+ * that the user has modified the value in the field. We must send the new
+ * value to the Cursor in this case, so that it knows whether it's clean
+ * or dirty.
+ */
+com.qwirx.grid.Grid.prototype.handleGridCellValueChange = function(e)
+{
+	var td = e.target.getOriginalElement();
+	var gridColumn = td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL];
+	var colIndex = gridColumn.getColumnIndex();
+	var dsColumns = this.dataSource_.getColumns();
+	var dsColumn = dsColumns[colIndex];
+	this.getCursor().setFieldValue(dsColumn.name, td.innerHTML);
 };
 
 /**
