@@ -195,7 +195,7 @@ com.qwirx.grid.Grid.prototype.addRow = function()
 	var newRowIndex = this.rows_.length;
 	var row = new com.qwirx.grid.Grid.Row(this, newRowIndex);
 	this.rows_[newRowIndex] = row;
-	this.handleRowUpdate(newRowIndex);
+	this.updateGridRow(newRowIndex);
 	
 	var element = row.getRowElement();
 	goog.dom.insertChildAt(this.dataTable_, element,
@@ -441,7 +441,22 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 	
 	var rowCount = e.getNewRowCount();
 	var newMax = 0;
+	var newScrollY = this.scrollOffset_.y;
 	
+	// Changing datasource row count so that no rows are visible
+	// should change position to keep at least one visible.
+	if (this.scrollOffset_.y >= rowCount)
+	{
+		if (rowCount == 0)
+		{
+			newScrollY = 0;
+		}
+		else
+		{
+			newScrollY = rowCount - 1;
+		}
+	}
+
 	if (this.rows_.length && !this.rows_[this.rows_.length - 1].isVisible())
 	{
 		// If some rows are hidden, then we have more than enough rows to
@@ -449,7 +464,7 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 		// to any more than the current scroll position. In a sense we've
 		// scrolled too far, but we don't want to arbitrarily scroll around 
 		// without permission (do we?)
-		newMax = this.scrollOffset_.y;
+		newMax = newScrollY;
 	}
 	else if (rowCount <= this.getFullyVisibleRowCount())
 	{
@@ -458,20 +473,6 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 	else
 	{
 		newMax = rowCount - this.getFullyVisibleRowCount();
-	}
-
-	// Changing datasource row count so that no rows are visible
-	// should however change position to keep at least one visible.
-	if (this.scrollOffset_.y >= rowCount)
-	{
-		if (rowCount == 0)
-		{
-			this.scrollOffset_.y = 0;
-		}
-		else
-		{
-			this.scrollOffset_.y = rowCount - 1;
-		}
 	}
 
 	// if the maximum is reduced to less than the current value,
@@ -506,7 +507,7 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 	// so let's take advantage of it to call refreshAll for us.
 	// this.scrollBar_.setValue(newVal);
 	this.scrollBar_.rangeModel.setMute(false);
-	this.setScroll(this.scrollOffset_.x, this.scrollOffset_.y);
+	this.setScroll(this.scrollOffset_.x, newScrollY);
 };
 
 /**
@@ -514,9 +515,9 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
  * match.
  * @todo currently the x value is ignored.
  */
-com.qwirx.grid.Grid.prototype.setScroll =
-	function(x, y)
+com.qwirx.grid.Grid.prototype.setScroll = function(x, y)
 {
+	var oldScrollOffset = goog.object.clone(this.scrollOffset_);
 	this.scrollOffset_.y = y;
 	var newVal = this.scrollBar_.getMaximum() - y;
 	
@@ -533,15 +534,19 @@ com.qwirx.grid.Grid.prototype.setScroll =
 
 	if (this.scrollBar_.getValue() != newVal)
 	{
-		// triggers a refreshAll.
+		// Will send a CHANGE event to the scrollbar, which calls
+		// the handleScrollEvent event handler, which calls us again.
+		// But it will be a no-op, because neither the scrollOffset_
+		// nor the scrollbar value will change that time. So we have
+		// to refresh separately, below.
 		this.scrollBar_.setValue(newVal);
 	}
-	else
+	
+	if (oldScrollOffset.y != y)
 	{
-		// Setting the scrollbar value to the same value will not
-		// trigger a refreshAll, but we need it to show/hide rows.
-		// TODO could we just call the cheaper updateRowVisibility() instead?
+		// If the scroll offset has changed, then we need to refresh all rows.
 		this.refreshAll();
+		
 		// {refreshAll} no longer updates the highlight rules for us,
 		// so we have to do that ourselves.
 		this.updateSelection_(/* force */ true);
@@ -613,9 +618,9 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 	
 	var lastGridRowToUpdate = this.rows_.length - 1;
 	
-	for (var i = firstGridRowToUpdate; i < lastGridRowToUpdate; i++)
+	for (var i = firstGridRowToUpdate; i <= lastGridRowToUpdate; i++)
 	{
-		this.handleRowUpdate(i + scroll.y);
+		this.updateGridRow(i);
 	}
 	
 	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
@@ -658,68 +663,57 @@ com.qwirx.grid.Grid.prototype.appendRow = function(columns)
 
 /**
  * Replace the existing contents of the existing row identified by
- * rowIndex with the latest contents retrieved from the data source.
+ * dataRowIndex (if visible) with the latest contents retrieved from the
+ * data source.
  */
 com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 {
-	var getRowDataFromCursor = null;
-	
-	if (this.isPositionedOnTemporaryNewRow &&
-		dataRowIndex == this.getRowCount() - 1)
+	var gridRowIndex = dataRowIndex - this.scrollOffset_.y;
+	if (dataRowIndex >= 0 && dataRowIndex < this.rows_.length)
 	{
-		// We're trying to retrieve the data for a new row, which doesn't
-		// exist in the underlying datasource, so we can't ask it. But
-		// this is only possible if the cursor is positioned on the new
-		// row, which means that we can ask the cursor for the current,
-		// temporary values.
-		
-		_assert("This should only happen if the cursor is positioned at NEW",
-			this.getCursor().getPosition() == com.qwirx.data.Cursor.NEW, 
-			'Expected ' + com.qwirx.data.Cursor.NEW + ' but was ' +
-			this.getCursor().getPosition());
-		
-		getRowDataFromCursor = com.qwirx.data.Cursor.NEW;
+		this.updateGridRow(gridRowIndex);
+	}
+};
+
+/**
+ * Replace the existing contents of the existing row identified by
+ * rowIndex with the latest contents retrieved from the data source.
+ */
+com.qwirx.grid.Grid.prototype.updateGridRow = function(gridRowIndex)
+{
+	var scroll = this.scrollOffset_;
+	
+	var dataSourceRowToRetrieve = gridRowIndex + scroll.y;
+	if (dataSourceRowToRetrieve == this.dataSource_.getCount())
+	{
+		dataSourceRowToRetrieve = com.qwirx.data.Cursor.NEW;
 	}
 	
 	var dataObject;
-	
-	if (getRowDataFromCursor !== null)
+	if (dataSourceRowToRetrieve == this.getCursor().getPosition())
 	{
 		dataObject = this.getCursor().getCurrentValues();
 	}
 	else
 	{
-		dataObject = this.dataSource_.get(dataRowIndex);
+		dataObject = this.dataSource_.get(dataSourceRowToRetrieve);
 	}
 	
-	var scroll = this.scrollOffset_;
-	var gridRowIndex = dataRowIndex - scroll.y;
+	// The row is displayed, so we need to update it
+	var row = this.rows_[gridRowIndex];
+	goog.asserts.assert(row, "Where is row " + gridRowIndex + "?");
 	
-	if (gridRowIndex >= 0 && gridRowIndex < this.rows_.length)
+	var columns = this.dataSource_.getColumns();
+	var colValues = [];
+	
+	var numCols = columns.length;
+	for (var i = 0; i < numCols; i++)
 	{
-		// The row is displayed, so we need to update it
-		var row = this.rows_[gridRowIndex];
-		goog.asserts.assert(row, "Where is row " + gridRowIndex + "?");
-		
-		// If the row is off screen, just delete it
-		
-		
-		var columns = this.dataSource_.getColumns();
-		var colValues = [];
-		
-		var numCols = columns.length;
-		for (var i = 0; i < numCols; i++)
-		{
-			var colText = this.getColumnText(dataObject, columns[i]);
-			colValues[i] = colText;
-		}
-		
-		row.setValues(colValues);
+		var colText = this.getColumnText(dataObject, columns[i]);
+		colValues[i] = colText;
 	}
-	else
-	{
-		// not displayed, nothing to do
-	}
+	
+	row.setValues(colValues);
 	
 	// Mute events to avoid an infinite loop where we end up calling
 	// refreshAll() which calls handleRowUpdate() again
@@ -1320,8 +1314,7 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 	{
 		if (this.rows_[i].isVisible())
 		{
-			var dataRow = i + this.scrollOffset_.y;
-			this.handleRowUpdate(dataRow);
+			this.updateGridRow(i);
 		}
 	}
 	
@@ -1374,7 +1367,8 @@ com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
 	{
 		// This will cause a row count change, and we need to update the
 		// maximum value of the scroll bar before calling setScroll() below.
-		this.dispatchEvent(new com.qwirx.grid.Grid.Event.RowCountChange(this.getRowCount()));
+		this.dispatchEvent(
+			new com.qwirx.grid.Grid.Event.RowCountChange(this.getRowCount()));
 	}
 	
 	if (activeRow == com.qwirx.data.Cursor.BOF)
@@ -1408,7 +1402,14 @@ com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
 	// TODO test what happens when newScroll > this.dataSource_.getCount()
 
 	this.setScroll(this.scrollOffset_.x, newScroll);
-	// calls refreshAll() for us
+	// Calls refreshAll() for us IF the scroll position changes.
+	// However if it does not, then we still need to update the CSS styles
+	// to highlight the appropriate row.
+	
+	if (oldScroll == newScroll)
+	{
+		this.updateCurrentRow_();
+	}
 	
 	this.dispatchEvent(com.qwirx.grid.Grid.Events.CURSOR_MOVED);
 };

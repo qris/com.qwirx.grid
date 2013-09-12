@@ -432,7 +432,7 @@ function testGridInsertRowAt()
 	assertEquals('Data source row count should have been updated',
 		oldCount + 1, grid.getDatasource().getCount());
 	
-	function assertCellContentsAndSelection(rowIndex, contents)
+	function assertCellContents(rowIndex, contents)
 	{
 		com.qwirx.test.assertGreaterThan(grid.rows_.length, rowIndex,
 			"Not enough rows in the grid");
@@ -440,13 +440,21 @@ function testGridInsertRowAt()
 		assertEquals("Grid seems to be displaying the wrong data row " +
 			"on table row " + rowIndex, rowIndex + scroll.y,
 			grid.rows_[rowIndex].getRowIndex());
-		
 		var cell = grid.getCell(0, rowIndex);
+		assertNotNullNorUndefined("No grid cell found at " +
+			"0," + rowIndex, cell);
 		assertEquals("Wrong contents in grid cell ("+rowIndex+",0)",
 			contents, cell.text);
 		assertEquals("grid cell at 0," + rowIndex + " seems to be part " +
 			"of the wrong row!", grid.rows_[rowIndex].getRowIndex(),
 			cell.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW].getRowIndex());
+	}
+	
+	function assertCellContentsAndSelection(rowIndex, contents)
+	{
+		assertCellContents(rowIndex, contents);
+		var scroll = grid.scrollOffset_;
+		var cell = grid.getCell(0, rowIndex);
 		
 		com.qwirx.test.FakeBrowserEvent.mouseDown(cell.tableCell);
 		assertSelection(grid, "Selection should have changed with " +
@@ -456,9 +464,24 @@ function testGridInsertRowAt()
 			rowIndex + scroll.y, grid.getCursor().getPosition());
 	}
 	
-	assertCellContentsAndSelection(0, oldRow0.product);
-	assertCellContentsAndSelection(1, "beer");
-	assertCellContentsAndSelection(2, oldRow1.product);
+	function assert_grid_contents_match_data_source()
+	{
+		for (var i = 0; i < grid.rows_.length; i++)
+		{
+			var dataSourceRow = i + grid.scrollOffset_.y;
+			if (dataSourceRow < ds.getCount())
+			{
+				assertTrue(grid.rows_[i].isVisible());
+				assertCellContents(i, ds.get(dataSourceRow).product);
+			}
+			else
+			{
+				assertFalse(grid.rows_[i].isVisible());
+			}
+		}
+	}
+	
+	assert_grid_contents_match_data_source();
 	
 	for (var i = 0; i < grid.rows_.length; i++)
 	{
@@ -468,9 +491,13 @@ function testGridInsertRowAt()
 	}
 	
 	// Test that inserting a row when scrolled also works
+	grid.getCursor().setPosition(2);
 	grid.setScroll(0, 1);
 	assertEquals("Grid's cursor should be positioned at row 2 before " +
-		"inserting data", 2, grid.cursor_.getPosition());
+		"inserting data", 2, grid.getCursor().getPosition());
+	assert_grid_contents_match_data_source();
+	
+	// reuse existing hidden grid row
 	ds.insert(2, 
 		{product: 'wine',
 			strength: 'Traditional Roman drink, tasty',
@@ -478,19 +505,20 @@ function testGridInsertRowAt()
 	assertEquals("Grid's cursor should be positioned at row 3 after " +
 		"inserting data before the current row", 3,
 		grid.cursor_.getPosition());
-	assertCellContentsAndSelection(0, "beer");
-	assertCellContentsAndSelection(1, "wine");
-	assertCellContentsAndSelection(2, oldRow1.product);
-	assertCellContentsAndSelection(3, ds.get(4).product);
-	assertCellContentsAndSelection(4, ds.get(5).product);
+	assert_grid_contents_match_data_source();
+	
+	// forces creation of a new grid row
+	ds.insert(3, 
+		{product: 'whisky',
+			strength: 'Traditional Scottish drink, tasty',
+			weakness: 'Hangovers, expensive'});
+	assertEquals("Grid's cursor should be positioned at row 4 after " +
+		"inserting data before the current row", 4,
+		grid.cursor_.getPosition());
+	assert_grid_contents_match_data_source();
 	
 	grid.setScroll(0, 0);
-	assertCellContentsAndSelection(0, oldRow0.product);
-	assertCellContentsAndSelection(1, "beer");
-	assertCellContentsAndSelection(2, "wine");
-	assertCellContentsAndSelection(3, oldRow1.product);
-	assertCellContentsAndSelection(4, ds.get(4).product);
-	assertCellContentsAndSelection(5, ds.get(5).product);
+	assert_grid_contents_match_data_source();
 	
 	// Need to moveFirst() before adding rows, otherwise we'll end up
 	// scrolling to keep the current record visible, which will break the
@@ -835,7 +863,8 @@ function testGridScrollAndHighlight()
 	assertEquals("row count change should have adjusted scrollbar " +
 		"value to maintain position 2 rows down from the top",
 		scrollbar.getMaximum() - 2, scrollbar.getValue());
-	assertObjectEquals(range(2, gridRows + 1), ds.requestedRows);
+	assertObjectEquals("Removing offscreen rows should not require " +
+		"repainting onscreen ones", [], ds.requestedRows);
 	assertObjectEquals({x: 0, y: 2}, grid.scrollOffset_);
 		
 	// Shrink the row count to less than the selection, check that
@@ -864,14 +893,21 @@ function testGridScrollAndHighlight()
 	// the grid scroll offset is left at 2, no longer matching the
 	// scroll position, to avoid a visual jump
 	assertObjectEquals({x: 0, y: 2}, grid.scrollOffset_);
-	assertObjectEquals(range(2, gridRows - 2), ds.requestedRows);
+	assertObjectEquals("Removing rows should not require " +
+		"repainting onscreen ones", [], ds.requestedRows);
 	
 	// a CHANGE event should not cause either the scrollbar value or the
 	// grid's scroll offset to change.
 	ds.requestedRows = [];
 	grid.scrollBar_.dispatchEvent(goog.ui.Component.EventType.CHANGE);
 	assertObjectEquals({x: 0, y: 2}, grid.scrollOffset_);
-	assertObjectEquals(range(2, gridRows - 2), ds.requestedRows);
+	assertObjectEquals("Removing rows should not require " +
+		"repainting onscreen ones", [], ds.requestedRows);
+
+	// But scrolling should repaint everything onscreen
+	grid.setScroll(0, 1);
+	assertObjectEquals({x: 0, y: 1}, grid.scrollOffset_);
+	assertObjectEquals(range(1, gridRows - 2), ds.requestedRows);
 
 	// reset for manual testing, playing and demos
 	var dataRows = 10000;
@@ -1577,15 +1613,15 @@ function test_grid_create_new_row_then_discard()
 }
 
 function assert_grid_response_to_dirty_dialog(grid, response_button,
-	expected_events)
+	expected_cursor_events)
 {
-	expected_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].concat(
-		expected_events);
+	expected_cursor_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].
+		concat(expected_cursor_events);
 	var oldPosition = grid.getCursor().getPosition();
 	var attempted_position = grid.getDatasource().getCount() - 1;
 	
 	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
-		expected_events,
+		expected_cursor_events,
 		function()
 		{
 			expect_dialog(function()
@@ -1611,7 +1647,7 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 			}
 		},
 		"Moving off the NEW row and clicking " + response_button +
-			"should have sent these events",
+		" should have sent these events to the Cursor",
 		false, // opt_continue_if_events_not_sent
 		function (event) // opt_eventHandler
 		{
@@ -1619,13 +1655,14 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 				event.type == com.qwirx.data.Cursor.Events.DISCARD ||
 				event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
 			{
-				assertEquals("The requested position should be stored in the " +
-					"event object", attempted_position,
+				assertEquals("The requested position should be stored " +
+					"in the event object", attempted_position,
 				 	event.getNewPosition());
 			}
 			else if (event.type == com.qwirx.data.Cursor.Events.SAVE)
 			{
-				var newRowPosition = grid.getCursor().getRowCount();
+				// After SAVE, so the new row is already in the datasource
+				var newRowPosition = grid.getCursor().getRowCount() - 1;
 				assertEquals("The cursor position at SAVE time should be " +
 					"stored in the event object", newRowPosition,
 					event.getPosition());
@@ -1638,7 +1675,7 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 	return actual_events;
 }
 
-function test_grid_create_new_row_then_save()
+function test_grid_create_new_row_then_discard_2()
 {
 	var grid = initGrid(ds);
 	var oldCount = ds.getCount();
@@ -1663,6 +1700,12 @@ function test_grid_create_new_row_then_save()
 		"and no new rows, accessible via the grid", oldCount,
 		grid.getRowCount());
 	assertEquals(oldCount - 1, grid.getCursor().getPosition());
+}
+
+function test_grid_create_new_row_then_save_and_move()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
 	
 	assert_setup_modified_grid_row(grid);
 	assert_grid_response_to_dirty_dialog(grid,
@@ -1674,14 +1717,27 @@ function test_grid_create_new_row_then_save()
 	assertEquals("There should now be " + oldCount + " real data rows, " +
 		"and no new rows, accessible via the grid", oldCount + 1,
 		grid.getRowCount());
-	assertEquals(oldCount, grid.getCursor().getPosition());
-	
-	// what happens if we sneak in changes while the modal dialog is open?
-	// what happens if we discard without navigating (opt_newPosition is null)
+	assertEquals(oldCount - 1, grid.getCursor().getPosition());
+
+	// TODO what happens if we sneak in changes while the modal dialog is open?
+	// TODO what happens if we discard without navigating (opt_newPosition is null)
+	// TODO what happens if we save changes without navigating (opt_newPosition is null)
+	// Do we end up positioned in the right place, with the right number of
+	// rows displayed?
 }
+
+// TODO a "row count change" is not a valid event for a Datasource to send,
+// because the receiver has no idea which rows have been added or removed,
+// so it doesn't know what to redraw. Remove this event.
+
+// TODO test adding more rows to a grid while scrolled (addRow gridRowIndex
+// != dataRowIndex confusion)
 
 // TODO check that updating a row that's being edited is handled
 // appropriately (what is appropriate? an exception event?)
+
+// TODO test that scrolling with a modified (new/existing) row doesn't
+// lose the modified values.
 
 // TODO test navigation in a grid with uncertain row counts.
 
