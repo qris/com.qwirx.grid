@@ -139,7 +139,7 @@ com.qwirx.grid.NavigationBar.prototype.createDom = function(tab)
 	this.prevButton_ = this.addButton('\u2190' /* single left arrow */,
 		this.onPrevButton);
 	
-	this.rowNumberField_ = new com.qwirx.ui.TextField('1');
+	this.rowNumberField_ = new com.qwirx.ui.TextField(this.cursor_.getPosition());
 	this.rowNumberField_.render(this.getElement());
 	goog.events.listen(this.rowNumberField_,
 		goog.ui.Component.EventType.ACTION,

@@ -1092,6 +1092,9 @@ function assertNavigateGrid(grid, startPosition, button,
 	assertEquals(positionMessage, expectedPosition,
 		grid.nav_.getCursor().getPosition());
 	assertEquals(scrollMessage, expectedScroll, grid.scrollOffset_.y);
+	assertEquals("After moving to " + positionMessage + ", the position " +
+		"text box should be updated with the new position",
+		"" + expectedPosition, grid.nav_.rowNumberField_.getContent());
 	
 	var expectedScrollBarMaximum = rows - grid.getFullyVisibleRowCount();
 	if (expectedPosition == com.qwirx.data.Cursor.NEW)
