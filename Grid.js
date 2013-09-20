@@ -164,6 +164,10 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	goog.events.listen(this.cursor_, 
 		com.qwirx.data.Cursor.Events.MOVE_TO,
 		this.handleCursorMove, /* capture */ false, this);
+	
+	this.keyHandler = new goog.events.KeyHandler(this.getElement());
+	goog.events.listen(this.keyHandler, 'key', this.handleKeyEvent,
+		/* capture */ false, this);
 };
 
 com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
@@ -1511,7 +1515,7 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 			}
 			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.SAVE)
 			{
-				cursor.save();
+				cursor.save(true /* suppress MOVE_TO event */);
 			}
 			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.CONTINUE)
 			{
@@ -1581,4 +1585,20 @@ goog.inherits(com.qwirx.grid.Grid.Event.RowCountChange,
 com.qwirx.grid.Grid.Event.RowCountChange.prototype.getNewRowCount = function()
 {
 	return this.newRowCount;
+};
+
+/**
+ * Called when the Grid's DOM element receives a keyboard event, for example
+ * <code>key</code>, which might indicate that a significant key such as
+ * <code>Enter</code> has been pressed, which means that we need to save
+ * the current record.
+ */
+com.qwirx.grid.Grid.prototype.handleKeyEvent = function(e)
+{
+	if (e.keyCode == '\n')
+	{
+		this.saveChanges();
+		e.stopPropagation();
+		return false;
+	}
 };

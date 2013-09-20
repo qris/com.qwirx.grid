@@ -1616,18 +1616,19 @@ function test_grid_create_new_row_then_discard()
 }
 
 function assert_grid_response_to_dirty_dialog(grid, response_button,
-	expected_cursor_events)
+	expected_cursor_events, opt_nav_button_clicking_callback)
 {
 	expected_cursor_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].
 		concat(expected_cursor_events);
-	var oldPosition = grid.getCursor().getPosition();
+	var old_position = grid.getCursor().getPosition();
 	var attempted_position = grid.getDatasource().getCount() - 1;
+	var new_row_position = grid.getDatasource().getCount();
 	
 	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
 		expected_cursor_events,
 		function()
 		{
-			expect_dialog(function()
+			expect_dialog(opt_nav_button_clicking_callback || function()
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
@@ -1659,16 +1660,30 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 				event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
 			{
 				assertEquals("The requested position should be stored " +
-					"in the event object", attempted_position,
-				 	event.getNewPosition());
+					"in the " + event.type + " event object",
+					attempted_position, event.getNewPosition());
 			}
-			else if (event.type == com.qwirx.data.Cursor.Events.SAVE)
+			
+			if (event.type == com.qwirx.data.Cursor.Events.SAVE)
 			{
-				// After SAVE, so the new row is already in the datasource
-				var newRowPosition = grid.getCursor().getRowCount() - 1;
-				assertEquals("The cursor position at SAVE time should be " +
-					"stored in the event object", newRowPosition,
+				assertEquals("The SAVE event's position should indicate " +
+					"the position of the newly created row", new_row_position,
 					event.getPosition());
+			}
+			else if (event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
+			{
+				// After SAVE, so the new row is already in the datasource.
+				// But the movement is from NEW to a row that really exists,
+				// otherwise we lost (or duplicated) a movement event!
+				assertEquals("The previous cursor position should be " +
+					"stored in the MOVE_TO event object", "NEW",
+					event.getPosition());
+				// Note: event.getNewPosition() was tested above
+				/*
+				assertEquals("The new cursor position should be stored " +
+					"in the MOVE_TO event", attempted_position,
+					event.getPosition());
+				*/
 			}
 			
 			event.stopPropagation();
@@ -1727,6 +1742,64 @@ function test_grid_create_new_row_then_save_and_move()
 	// TODO what happens if we save changes without navigating (opt_newPosition is null)
 	// Do we end up positioned in the right place, with the right number of
 	// rows displayed?
+}
+
+// TODO test grid keyboard event handling: tab, shift-tab, cursor keys, enter, escape
+
+function test_grid_create_new_row_then_save_without_moving()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	
+	assert_setup_modified_grid_row(grid);
+	
+	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
+		[ // expected_cursor_events
+			com.qwirx.data.Cursor.Events.SAVE,
+			com.qwirx.data.Cursor.Events.MOVE_TO
+		],
+		function()
+		{
+			goog.testing.events.fireKeySequence(grid.getElement(), '\n');
+			
+			assertEquals("Cursor should be positioned at " +
+				oldCount + " after pressing Enter", oldCount,
+				grid.getCursor().getPosition());
+			assertFalse("Cursor should no longer be dirty after " +
+				"pressing Enter", grid.getCursor().isDirty());
+		},
+		"Pressing Enter on the NEW row should have sent these events to " +
+		"the Cursor",
+		false, // opt_continue_if_events_not_sent
+		function (event) // opt_eventHandler
+		{
+			if (event.type == com.qwirx.data.Cursor.Events.SAVE)
+			{
+				// The "location" of a SAVE event is the newly created row
+				assertEquals("The cursor position at SAVE time should be " +
+					"stored in the event object", oldCount,
+					event.getPosition());
+			}
+			
+			if (event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
+			{
+				// But the "location" of a MOVE_TO event is the row that
+				// we were originally positioned on, i.e. the NEW row.
+				assertEquals("The cursor position at SAVE time should be " +
+					"stored in the event object", "NEW", event.getPosition());
+				assertEquals("The requested position should be stored " +
+					"in the event object", oldCount,
+				 	event.getNewPosition());
+			}
+		});
+
+	assertFalse("Cursor should be clean after pressing Enter to save the " +
+		"modified row data", grid.getCursor().isDirty());
+	assertEquals("There should now be " + (oldCount + 1) + " real data rows, " +
+		"and no new rows, accessible via the grid", oldCount + 1,
+		grid.getRowCount());
+	assertEquals("Grid should be positioned on the newly saved row",
+		oldCount, grid.getCursor().getPosition());
 }
 
 // TODO a "row count change" is not a valid event for a Datasource to send,
