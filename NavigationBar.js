@@ -153,6 +153,9 @@ com.qwirx.grid.NavigationBar.prototype.createDom = function(tab)
 		this.onLastButton);
 	this.newButton_ = this.addButton('\u2217' /* asterisk operator */,
 		this.onNewButton);
+	
+	// Set the initial button enabled states
+	this.onCursorMove(undefined /* no event */);
         
 	return element;
 };
