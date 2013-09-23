@@ -63,6 +63,7 @@ function expect_dialog(callback, response_button, listener)
 
 function tearDown()
 {
+	com.qwirx.ui.Dialog.isTestMode = false;
 	mockController.$tearDown();
 	stubs.reset();
 }
