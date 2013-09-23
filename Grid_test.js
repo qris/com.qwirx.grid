@@ -1568,17 +1568,19 @@ function test_empty_grid_scroll_maximum_is_valid()
 	assertEquals(0, grid.getFullyVisibleRowCount());
 }
 
-function assert_setup_modified_grid_row(grid)
+function assert_setup_modified_grid_row(grid, button, startPosition)
 {
 	if (grid.getCursor().isDirty())
 	{
 		grid.getCursor().discard();
 	}
 	
-	// grid.getCursor().moveNew();
-	com.qwirx.test.FakeClickEvent.send(grid.nav_.newButton_);
-	assertEquals(com.qwirx.data.Cursor.NEW, grid.getCursor().getPosition());
-	assertTrue(grid.isPositionedOnTemporaryNewRow);
+	com.qwirx.test.FakeClickEvent.send(button);
+	assertEquals(startPosition, grid.getCursor().getPosition());
+	assertEquals("should the grid be positioned on a temporary new row?",
+		(grid.getCursor().getPosition() == com.qwirx.data.Cursor.NEW),
+		grid.isPositionedOnTemporaryNewRow);
+	var oldValues = grid.getCursor().getCurrentValues();
 	
 	var rowIndex = grid.getRowCount() - grid.scrollOffset_.y - 1;
 	var cells = grid.rows_[rowIndex].getColumns();
@@ -1591,8 +1593,10 @@ function assert_setup_modified_grid_row(grid)
 		goog.editor.Field.EventType.DELAYEDCHANGE);
 	assertTrue("Cursor should be dirty after modifying grid values",
 		grid.getCursor().isDirty());
+	
+	oldValues.product = 'computers';
 	assertObjectEquals("Modified values should have been copied into the Cursor",
-		{product: 'computers'}, grid.getCursor().getCurrentValues());
+		oldValues, grid.getCursor().getCurrentValues());
 }
 
 function test_grid_create_new_row_then_discard()
@@ -1600,7 +1604,8 @@ function test_grid_create_new_row_then_discard()
 	var grid = initGrid(ds);
 	var oldCount = ds.getCount();
 	
-	assert_setup_modified_grid_row(grid);
+	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
+		com.qwirx.data.Cursor.NEW);
 	
 	var events = com.qwirx.test.assertEvents(grid.getCursor(),
 		[
@@ -1628,7 +1633,7 @@ function test_grid_create_new_row_then_discard()
 }
 
 function assert_grid_response_to_dirty_dialog(grid, response_button,
-	expected_cursor_events, opt_nav_button_clicking_callback)
+	expected_cursor_events)
 {
 	expected_cursor_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].
 		concat(expected_cursor_events);
@@ -1640,7 +1645,7 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 		expected_cursor_events,
 		function()
 		{
-			expect_dialog(opt_nav_button_clicking_callback || function()
+			expect_dialog(function()
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
@@ -1710,7 +1715,8 @@ function test_grid_create_new_row_then_discard_2()
 	var grid = initGrid(ds);
 	var oldCount = ds.getCount();
 	
-	assert_setup_modified_grid_row(grid);
+	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
+		com.qwirx.data.Cursor.NEW);
 	assert_grid_response_to_dirty_dialog(grid,
 		goog.ui.Dialog.DefaultButtonKeys.CANCEL,
 		[]);
@@ -1719,7 +1725,8 @@ function test_grid_create_new_row_then_discard_2()
 		grid.getRowCount());
 	assertEquals(com.qwirx.data.Cursor.NEW, grid.getCursor().getPosition());
 	
-	assert_setup_modified_grid_row(grid);
+	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
+		com.qwirx.data.Cursor.NEW);
 	assert_grid_response_to_dirty_dialog(grid,
 		goog.ui.Dialog.DefaultButtonKeys.CONTINUE,
 		[
@@ -1737,7 +1744,8 @@ function test_grid_create_new_row_then_save_and_move()
 	var grid = initGrid(ds);
 	var oldCount = ds.getCount();
 	
-	assert_setup_modified_grid_row(grid);
+	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
+		com.qwirx.data.Cursor.NEW);
 	assert_grid_response_to_dirty_dialog(grid,
 		goog.ui.Dialog.DefaultButtonKeys.SAVE,
 		[
@@ -1758,12 +1766,11 @@ function test_grid_create_new_row_then_save_and_move()
 
 // TODO test grid keyboard event handling: tab, shift-tab, cursor keys, enter, escape
 
-function test_grid_create_new_row_then_save_without_moving()
+function assert_grid_create_new_row_then_save_without_moving(grid,
+	expectedOldPosition, expectedNewPosition)
 {
-	var grid = initGrid(ds);
-	var oldCount = ds.getCount();
-	
-	assert_setup_modified_grid_row(grid);
+	var expect_move_event = (expectedOldPosition != expectedNewPosition);
+	var received_move_event = undefined;
 	
 	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
 		[ // expected_cursor_events
@@ -1775,43 +1782,82 @@ function test_grid_create_new_row_then_save_without_moving()
 			goog.testing.events.fireKeySequence(grid.getElement(), 13);
 			
 			assertEquals("Cursor should be positioned at " +
-				oldCount + " after pressing Enter", oldCount,
-				grid.getCursor().getPosition());
+				expectedNewPosition + " after pressing Enter",
+				expectedNewPosition, grid.getCursor().getPosition());
 			assertFalse("Cursor should no longer be dirty after " +
 				"pressing Enter", grid.getCursor().isDirty());
 		},
 		"Pressing Enter on the NEW row should have sent these events to " +
 		"the Cursor",
-		false, // opt_continue_if_events_not_sent
+		expect_move_event ? false : true, // opt_continue_if_events_not_sent
 		function (event) // opt_eventHandler
 		{
 			if (event.type == com.qwirx.data.Cursor.Events.SAVE)
 			{
 				// The "location" of a SAVE event is the newly created row
 				assertEquals("The cursor position at SAVE time should be " +
-					"stored in the event object", oldCount,
+					"stored in the event object", expectedNewPosition,
 					event.getPosition());
 			}
 			
 			if (event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
 			{
+				received_move_event = event;
+				
 				// But the "location" of a MOVE_TO event is the row that
 				// we were originally positioned on, i.e. the NEW row.
 				assertEquals("The cursor position at SAVE time should be " +
-					"stored in the event object", "NEW", event.getPosition());
+					"stored in the event object", expectedOldPosition,
+					event.getPosition());
 				assertEquals("The requested position should be stored " +
-					"in the event object", oldCount,
+					"in the event object", expectedNewPosition,
 				 	event.getNewPosition());
 			}
 		});
+	
+	if (expect_move_event)
+	{
+		assertNotUndefined("Should have received a MOVE_TO event from " +
+			expectedOldPosition + " to " + expectedNewPosition,
+			received_move_event);
+	}
+	else
+	{
+			assertUndefined("Should NOT have received any MOVE_TO event",
+				received_move_event);
+	}
 
 	assertFalse("Cursor should be clean after pressing Enter to save the " +
 		"modified row data", grid.getCursor().isDirty());
+	assertEquals("Grid should be positioned on the newly saved row",
+		expectedNewPosition, grid.getCursor().getPosition());
+}
+
+function test_grid_modify_existing_row_then_save_without_moving()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	assert_setup_modified_grid_row(grid, grid.nav_.nextButton_,
+		0 /* opt_startPosition */);
+	assert_grid_create_new_row_then_save_without_moving(grid,
+		0 /* expectedOldPosition */, 0 /* expectedNewPosition */);
+	assertEquals("There should now be " + oldCount + " real data rows, " +
+		"and no new rows, accessible via the grid", oldCount,
+		grid.getRowCount());
+}
+
+function test_grid_create_new_row_then_save_without_moving()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	grid.getCursor().setPosition(1);
+	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
+		com.qwirx.data.Cursor.NEW);
+	assert_grid_create_new_row_then_save_without_moving(grid,
+		com.qwirx.data.Cursor.NEW, oldCount);
 	assertEquals("There should now be " + (oldCount + 1) + " real data rows, " +
 		"and no new rows, accessible via the grid", oldCount + 1,
 		grid.getRowCount());
-	assertEquals("Grid should be positioned on the newly saved row",
-		oldCount, grid.getCursor().getPosition());
 }
 
 // TODO a "row count change" is not a valid event for a Datasource to send,
