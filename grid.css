@@ -4,6 +4,11 @@ table.fb-grid-data-table
 	background: white;
 }
 
+table.fb-grid-data-table > tr
+{
+	height: 1.2em;
+}
+
 table.fb-grid-data-table > tr > th,
 table.fb-grid-data-table > tr > td
 {
@@ -16,10 +21,6 @@ table.fb-grid-data-table > tr > th
 {
 	background: #eee;
 	text-align: left;
-}
-
-table.fb-grid-data-table > tr > td
-{
 }
 
 .fb-grid
