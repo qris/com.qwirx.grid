@@ -921,15 +921,24 @@ com.qwirx.grid.Grid.Row.prototype.setHighlighted = function(enable)
 com.qwirx.grid.Grid.prototype.updateCurrentRow_ = function()
 {
 	var currentDataRowIndex = this.cursor_.getPosition();
-	var currentVisibleRowIndex = currentDataRowIndex - 
-		this.scrollOffset_.y;
+	var currentGridRowIndex;
+	
+	if (this.isPositionedOnTemporaryNewRow)
+	{
+		currentGridRowIndex = (this.getRowCount() - 1) - this.scrollOffset_.y;
+	}
+	else
+	{
+		currentGridRowIndex = currentDataRowIndex - this.scrollOffset_.y;
+	}
+	
 	var css;
 	
-	if (currentVisibleRowIndex >= 0 && 
-		currentVisibleRowIndex < this.rows_.length)
+	if (currentGridRowIndex >= 0 && 
+		currentGridRowIndex < this.rows_.length)
 	{
 		css = 'table#' + this.dataTable_.id +
-			' > tr#row_' + currentVisibleRowIndex + 
+			' > tr#row_' + currentGridRowIndex + 
 			' > th { background-color: #88f; }';
 	}
 	else

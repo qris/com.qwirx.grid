@@ -1109,15 +1109,26 @@ function assertNavigateGrid(grid, startPosition, button,
 		grid.scrollBar_.getValue());
 
 	// Check that the row highlighter has been updated
-	var currentDataRowIndex = expectedPosition;
-	var currentVisibleRowIndex = currentDataRowIndex - expectedScroll;
+	var currentGridRowIndex;
+	
+	if (expectedPosition == com.qwirx.data.Cursor.NEW)
+	{
+		currentGridRowIndex = rows - expectedScroll;
+		// past the far end of the data source
+	}
+	else
+	{
+		var currentDataRowIndex = expectedPosition;
+		currentGridRowIndex = currentDataRowIndex - expectedScroll;
+	}
+	
 	var css;
 	
-	if (currentVisibleRowIndex >= 0 && 
-		currentVisibleRowIndex < grid.rows_.length)
+	if (currentGridRowIndex >= 0 && 
+		currentGridRowIndex < grid.rows_.length)
 	{
 		css = 'table#' + grid.dataTable_.id +
-			' > tr#row_' + currentVisibleRowIndex + 
+			' > tr#row_' + currentGridRowIndex + 
 			' > th { background-color: #88f; }';
 	}
 	else
