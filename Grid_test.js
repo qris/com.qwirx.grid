@@ -1771,7 +1771,7 @@ function test_grid_create_new_row_then_save_without_moving()
 		],
 		function()
 		{
-			goog.testing.events.fireKeySequence(grid.getElement(), '\n');
+			goog.testing.events.fireKeySequence(grid.getElement(), 13);
 			
 			assertEquals("Cursor should be positioned at " +
 				oldCount + " after pressing Enter", oldCount,

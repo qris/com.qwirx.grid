@@ -1604,7 +1604,7 @@ com.qwirx.grid.Grid.Event.RowCountChange.prototype.getNewRowCount = function()
  */
 com.qwirx.grid.Grid.prototype.handleKeyEvent = function(e)
 {
-	if (e.keyCode == '\n')
+	if (e.keyCode == 13)
 	{
 		this.saveChanges();
 		e.stopPropagation();
