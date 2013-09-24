@@ -28,7 +28,9 @@ com.qwirx.grid.NavigableGrid = function(datasource, opt_domHelper,
 goog.inherits(com.qwirx.grid.NavigableGrid, com.qwirx.grid.Grid);
 
 com.qwirx.grid.NavigableGrid.RENDERER =
-	new com.qwirx.ui.Renderer(['com_qwirx_grid_NavigableGrid']);
+	new com.qwirx.ui.Renderer(
+		com.qwirx.grid.Grid.RENDERER.getClassNames().concat(
+			['com_qwirx_grid_NavigableGrid']));
 
 /**
  * Allow Grid to construct its DOM, and then rearrange it to fit

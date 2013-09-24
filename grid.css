@@ -1,7 +1,6 @@
 table.fb-grid-data-table
 {
 	border-collapse: collapse;
-	background: white;
 }
 
 table.fb-grid-data-table > tr
@@ -21,6 +20,11 @@ table.fb-grid-data-table > tr > th
 {
 	background: #eee;
 	text-align: left;
+}
+
+table.fb-grid-data-table > tr > td
+{
+	background: white;
 }
 
 .fb-grid

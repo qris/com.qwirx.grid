@@ -132,7 +132,8 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 	var columns = this.dataSource_.getColumns();
 	var numCols = columns.length;
 
-	var cornerCell = this.dom_.createDom('th', {});
+	var cornerCell = this.dom_.createDom('th',
+		{class: 'com_qwirx_grid_Grid_CORNER'});
 	cornerCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
 		com.qwirx.grid.Grid.CellType.CORNER;
 	var colHeadingCells = [cornerCell];
@@ -146,7 +147,8 @@ com.qwirx.grid.Grid.prototype.enterDocument = function()
 		colHeadingCells.push(column.getIdentityNode());
 	}
 	
-	this.headerRow_ = this.dom_.createDom('tr', {}, colHeadingCells);
+	this.headerRow_ = this.dom_.createDom('tr',
+		{class: 'com_qwirx_grid_Grid_headerRow'}, colHeadingCells);
 	this.dataTable_.appendChild(this.headerRow_);
 
 	goog.events.listen(this, 
@@ -257,7 +259,8 @@ com.qwirx.grid.Grid.TD_ATTRIBUTE_COL =
 com.qwirx.grid.Grid.Column = function(grid, caption)
 {
 	this.grid_= grid;
-	var th = this.tableCell_ = grid.dom_.createDom('th', {}, caption);
+	var th = this.tableCell_ = grid.dom_.createDom('th',
+		{class: 'com_qwirx_grid_Grid_COLUMN_HEAD'}, caption);
 	th[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
 		com.qwirx.grid.Grid.CellType.COLUMN_HEAD;
 	th[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL] = this;
@@ -290,15 +293,16 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex)
 	this.grid_ = grid;
 	this.columns_ = [];
 	
-	var th = this.tableCell_ = grid.dom_.createDom('th', {}, '');
+	var th = this.tableCell_ = grid.dom_.createDom('th',
+		{class: 'com_qwirx_grid_Grid_ROW_HEAD'}, '');
 	th[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
 		com.qwirx.grid.Grid.CellType.ROW_HEAD;
 	th[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW] = this;
 
 	var cells = [th];
 	this.tableDataCells_ = cells;
-	this.tableRowElement_ = grid.dom_.createDom('tr', {}, cells);
-	this.tableRowElement_.id = "row_" + rowIndex;
+	this.tableRowElement_ = grid.dom_.createDom('tr',
+		{class: "com_qwirx_grid_Grid_Row row_" + rowIndex}, cells);
 };
 
 /**
@@ -367,7 +371,7 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 		else
 		{
 			var text = textValues[i];
-			var cssClasses = 'col_' + i;
+			var cssClasses = 'com_qwirx_grid_Grid_MIDDLE col_' + i;
 			td = this.grid_.dom_.createDom('td', cssClasses, column.text);
 			goog.dom.appendChild(this.tableRowElement_, td);
 			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =

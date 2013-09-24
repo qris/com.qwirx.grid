@@ -81,8 +81,6 @@ function test_NavigableGrid_createDom()
 	assertEquals("Grid should fill 100% of parent element",
 		"100%", elem.style.width);
 	
-	assertEquals("NavigableGrid should have a CSS class", 
-		"com_qwirx_grid_NavigableGrid", grid.getElement().className);
 	assertEquals("BorderLayout should have a CSS class", 
 		"com_qwirx_ui_BorderLayout", grid.layout_.getElement().className);
 }
@@ -483,13 +481,6 @@ function testGridInsertRowAt()
 	}
 	
 	assert_grid_contents_match_data_source();
-	
-	for (var i = 0; i < grid.rows_.length; i++)
-	{
-		var row = grid.rows_[i];
-		assertEquals("Newly inserted row " + i + " has the wrong ID " +
-			"for highlighting", "row_" + i, row.tableRowElement_.id);
-	}
 	
 	// Test that inserting a row when scrolled also works
 	grid.getCursor().setPosition(2);
@@ -1870,6 +1861,39 @@ function test_grid_create_new_row_then_save_without_moving()
 	assertEquals("There should now be " + (oldCount + 1) + " real data rows, " +
 		"and no new rows, accessible via the grid", oldCount + 1,
 		grid.getRowCount());
+}
+
+function test_grid_cell_styles()
+{
+	var grid = initGrid(ds);
+	assertEquals('com_qwirx_grid_Grid com_qwirx_grid_NavigableGrid',
+		grid.getElement().className);
+	assertEquals('fb-grid-data', grid.wrapper.getElement().className);
+	assertEquals('fb-grid-data-table', grid.dataTable_.className);
+	assertEquals('com_qwirx_grid_Grid_headerRow', grid.headerRow_.className);
+	assertEquals('com_qwirx_grid_Grid_CORNER', 
+		grid.headerRow_.children[0].className);
+	assertEquals('com_qwirx_grid_Grid_COLUMN_HEAD', 
+		grid.headerRow_.children[1].className);
+	assertEquals('com_qwirx_grid_Grid_COLUMN_HEAD', 
+		grid.headerRow_.children[2].className);
+	
+	var rowCount = ds.getCount();
+	for (var i = 0; i < grid.rows_.length; i++)
+	{
+		var row = grid.rows_[i];
+		var tr = row.tableRowElement_;
+		assertEquals('com_qwirx_grid_Grid_Row row_' + i, tr.className);
+		assertEquals('com_qwirx_grid_Grid_ROW_HEAD', row.tableCell_.className);
+		assertEquals("The first cell in a row's table data cells should be " +
+			"the th cell", row.tableCell_, row.tableDataCells_[0]);
+		for (var j = 1; j < ds.getColumns().length; j++)
+		{
+			var cell = row.tableDataCells_[j];
+			assertEquals('com_qwirx_grid_Grid_MIDDLE col_' + (j-1),
+				cell.className);
+		}
+	}
 }
 
 // TODO a "row count change" is not a valid event for a Datasource to send,
