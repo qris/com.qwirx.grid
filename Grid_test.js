@@ -649,6 +649,7 @@ function random(max, seed)
 
 TestDataSource.prototype.get = function(rowIndex)
 {
+	this.assertValidRow(rowIndex, this.rowCount - 1);
 	this.requestedRows.push(rowIndex);
 	return {
 		index: rowIndex,
