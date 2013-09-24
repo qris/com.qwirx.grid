@@ -810,20 +810,20 @@ function testScrollBarBehaviour()
 }
 */
 
+function range(a, b)
+{
+	var array = [];
+	for (var i = 0; i <= (b - a); i++)
+	{
+		array[i] = a + i;
+	}
+	return array;
+}
+
 function testGridScrollAndHighlight()
 {
 	var ds = new TestDataSource();
 	var grid = initGrid(ds);
-	
-	function range(a, b)
-	{
-		var array = [];
-		for (var i = 0; i <= (b - a); i++)
-		{
-			array[i] = a + i;
-		}
-		return array;
-	}
 	
 	var gridRows = grid.getVisibleRowCount();
 	assertObjectEquals(range(0, gridRows - 1), ds.requestedRows);
