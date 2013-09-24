@@ -670,9 +670,21 @@ TestDataSource.prototype.getCount = function()
 
 TestDataSource.prototype.setRowCount = function(newRowCount)
 {
+	var oldRowCount = this.rowCount;
 	this.rowCount = newRowCount;
-	this.dispatchEvent(new com.qwirx.data.Datasource.RowEvent(
-		com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE, newRowCount));
+	
+	if (newRowCount > oldRowCount)
+	{
+		this.dispatchEvent(new com.qwirx.data.Datasource.RowEvent(
+			com.qwirx.data.Datasource.Events.ROWS_INSERT,
+			range(oldRowCount, newRowCount)));
+	}
+	else if (newRowCount < oldRowCount)
+	{
+		this.dispatchEvent(new com.qwirx.data.Datasource.RowEvent(
+			com.qwirx.data.Datasource.Events.ROWS_DELETE,
+			range(newRowCount, oldRowCount)));
+	}
 };
 
 TestDataSource.prototype.getColumns = function()

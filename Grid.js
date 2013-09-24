@@ -49,9 +49,6 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	var self = this;
 	
 	datasource.addEventListener(
-		com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE,
-		this.handleDataSourceRowCountChange, false, this);
-	datasource.addEventListener(
 		com.qwirx.data.Datasource.Events.ROWS_INSERT,
 		function(e) { self.handleDataSourceRowsEvent(e,
 			self.handleRowInsert); });
@@ -59,6 +56,10 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 		com.qwirx.data.Datasource.Events.ROWS_UPDATE,
 		function(e) { self.handleDataSourceRowsEvent(e,
 			self.handleRowUpdate); });
+	datasource.addEventListener(
+		com.qwirx.data.Datasource.Events.ROWS_DELETE,
+		function(e) { self.handleDataSourceRowsEvent(e,
+			self.handleRowDelete); });
 	this.cursor_.addEventListener(
 		com.qwirx.data.Cursor.Events.BEFORE_DISCARD,
 		this.handleDirtyMovement, /* capture */ false, this);
@@ -416,17 +417,6 @@ com.qwirx.grid.Grid.Row.prototype.getColumns = function()
 };
 
 /**
- * Event handler for any notification from the data source that the
- * number of rows (i.e. the result of calling 
- * <code>this.dataSource_.getCount()</code> has changed.
- * @param {com.qwirx.data.Datasource.RowEvent} the event object.
- */
-com.qwirx.grid.Grid.prototype.handleDataSourceRowCountChange = function(e)
-{
-	this.handleRowCountChange(new com.qwirx.grid.Grid.Event.RowCountChange(e.getAffectedRows()));
-};
-
-/**
  * Event handler for any notification from the application that the
  * number of rows (i.e. the result of calling 
  * <code>this.getRowCount()</code> has changed.
@@ -560,6 +550,10 @@ com.qwirx.grid.Grid.prototype.setScroll = function(x, y)
 com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
 	function(event, handler)
 {
+	this.handleRowCountChange(
+		new com.qwirx.grid.Grid.Event.RowCountChange(
+			this.getCursor().getRowCount()));
+	
 	if (this.isInDocument())
 	{
 		var rowIndexes = event.getAffectedRows();
@@ -567,6 +561,12 @@ com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
 		{
 			handler.call(this, rowIndexes[i]);
 		}
+		
+		// The last added/updated/removed row might be particularly large,
+		// so as to affect the number of rows visible on screen, so we might
+		// need to recalculate the scroll bar value and maximum to restore
+		// access to all rows.
+		this.setScroll(this.scrollOffset_.x, this.scrollOffset_.y);
 	}
 	else
 	{
@@ -601,17 +601,12 @@ com.qwirx.grid.Grid.prototype.getColumnText = function(rowObject, column)
 	return text;
 };
 
-/**
- * Respond to a datasource row being inserted at the given index.
- * This could be by refreshing the row and all subsequent ones, if it's
- * visible, otherwise by updating the scroll position if necessary.
- */
-com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
+com.qwirx.grid.Grid.prototype.updateRowsFromIndex = function(dataRowIndex)
 {
 	// Calculate the grid row that corresponds to the data source row index,
 	// and update that row if visible, and all the remaining ones.
 	var scroll = this.scrollOffset_;
-	var firstGridRowToUpdate = newRowIndex - scroll.y;
+	var firstGridRowToUpdate = dataRowIndex - scroll.y;
 	
 	// TODO if a row is inserted off screen, just change the scroll position
 	// to avoid refreshing the entire grid.
@@ -624,46 +619,51 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 	
 	for (var i = firstGridRowToUpdate; i <= lastGridRowToUpdate; i++)
 	{
-		this.updateGridRow(i);
+		if (this.rows_[i].isVisible())
+		{
+			this.updateGridRow(i);
+		}
 	}
-	
+};
+
+com.qwirx.grid.Grid.prototype.adjustSelectionAround = function(dataRowIndex,
+	amount)
+{
 	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
 	{
-		if (this.drag.y1 < newRowIndex && this.drag.y2 < newRowIndex)
+		if (this.drag.y1 < dataRowIndex && this.drag.y2 < dataRowIndex)
 		{
 			// selection is entirely before and does not include the 
-			// newly inserted row at all, so we don't need to change it.
+			// affected row at all, so we don't need to change it.
 		}
-		else if (this.drag.y1 < newRowIndex)
+		else if (this.drag.y1 < dataRowIndex)
 		{
-			// selection covers the new inserted row, so extend the
-			// selection to end on the same row as before.
-			this.drag.y2++;
+			// selection covers the affected row, so adjust the end point of
+			// the selection to end on the same row as before.
+			this.drag.y2 += amount;
 		}
 		else
 		{
-			// selection is after the newly inserted row, so move it down
+			// selection is after the affected row, so move it up/down
 			// by 1 row.
-			this.drag.y1++;
-			this.drag.y2++;
+			this.drag.y1 += amount;
+			this.drag.y2 += amount;
 		}
 	}
 	
 	this.updateSelection_(false);
-	
-	// Note: we rely on the datasource to send us a
-	// com.qwirx.data.Datasource.Events.ROW_COUNT_CHANGE event, to cause us
-	// to call refreshAll() and update the scroll bar.
 };
 
-/*
-com.qwirx.grid.Grid.prototype.appendRow = function(columns)
+/**
+ * Respond to a datasource row being inserted at the given index.
+ * This could be by refreshing the row and all subsequent ones, if it's
+ * visible, otherwise by updating the scroll position if necessary.
+ */
+com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 {
-	var newRowIndex = this.getRowCount();
-	this.insertRowAt(columns, newRowIndex);
-	return newRowIndex;
+	this.updateRowsFromIndex(newRowIndex);
+	this.adjustSelectionAround(newRowIndex, 1);
 };
-*/
 
 /**
  * Replace the existing contents of the existing row identified by
@@ -677,6 +677,15 @@ com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 	{
 		this.updateGridRow(gridRowIndex);
 	}
+};
+
+/**
+ * 
+ */
+com.qwirx.grid.Grid.prototype.handleRowDelete = function(dataRowIndex)
+{
+	this.updateRowsFromIndex(dataRowIndex);
+	this.adjustSelectionAround(dataRowIndex, -1);
 };
 
 /**
