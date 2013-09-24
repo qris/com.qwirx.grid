@@ -678,7 +678,8 @@ com.qwirx.grid.Grid.prototype.updateGridRow = function(gridRowIndex)
 	var scroll = this.scrollOffset_;
 	
 	var dataSourceRowToRetrieve = gridRowIndex + scroll.y;
-	if (dataSourceRowToRetrieve == this.dataSource_.getCount())
+	if (dataSourceRowToRetrieve == this.dataSource_.getCount() &&
+		this.isPositionedOnTemporaryNewRow)
 	{
 		dataSourceRowToRetrieve = com.qwirx.data.Cursor.NEW;
 	}
