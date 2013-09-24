@@ -178,18 +178,6 @@ com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
 	return this.rows_[this.rows_.length - 1].isFullyVisible();
 };
 
-com.qwirx.grid.Grid.prototype.isPartialLastRow = function()
-{
-	// If we don't have any rows, the answer must be "no!"
-	if (this.rows_.length == 0)
-	{
-		return false;
-	}
-	
-	var lastRow = this.rows_[this.rows_.length - 1];
-	return !(lastRow.isFullyVisible());
-};
-
 /**
  * @private
  * An internal function that's called by
@@ -197,24 +185,31 @@ com.qwirx.grid.Grid.prototype.isPartialLastRow = function()
  * rows to the Grid, in order to be able to display more data at a time,
  * for example when the physical (pixel) size of the Grid changes.
  */
-com.qwirx.grid.Grid.prototype.addRow = function()
+com.qwirx.grid.Grid.prototype.addRow = function(visible)
 {
 	var newRowIndex = this.rows_.length;
 	var row = new com.qwirx.grid.Grid.Row(this, newRowIndex);
 	this.rows_[newRowIndex] = row;
-	this.updateGridRow(newRowIndex);
+	row.setVisible(visible);
+	
+	if (visible)
+	{
+		this.updateGridRow(newRowIndex);
+	}
 	
 	var element = row.getRowElement();
 	goog.dom.insertChildAt(this.dataTable_, element,
 		newRowIndex + 1 /* for header row */);
 	
 	// stolen from goog.style.scrollIntoContainerView 
+	/*
 	if (element.clientHeight == 0)
 	{
 		throw new Error("A row element with zero height cannot " +
 			"be added to a dynamic grid, since the number of " +
 			"such rows cannot be calculated.");
 	}
+	*/
 	
 	var elementPos = goog.style.getPageOffset(element);
 	if (newRowIndex > 1000 || elementPos.y > 10000)
@@ -222,6 +217,8 @@ com.qwirx.grid.Grid.prototype.addRow = function()
 		// emergency brakes!
 		throw new Error("Emergency brakes!");
 	}
+	
+	return row;
 };
 
 /**
@@ -315,11 +312,6 @@ com.qwirx.grid.Grid.Row = function(grid, rowIndex)
 com.qwirx.grid.Grid.Row.prototype.isVisibleInternal = function(include_partial)
 {
 	var element = this.getRowElement();
-	if (!this.isVisible())
-	{
-		return false;
-	}
-	
 	var elementPos = goog.style.getPageOffset(element);
 	
 	var container = this.grid_.wrapper.getElement();
@@ -438,46 +430,6 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 	this.updateRowVisibility();
 	
 	var rowCount = e.getNewRowCount();
-	var newMax = 0;
-	var newScrollY = this.scrollOffset_.y;
-	
-	// Changing datasource row count so that no rows are visible
-	// should change position to keep at least one visible.
-	if (this.scrollOffset_.y >= rowCount)
-	{
-		if (rowCount == 0)
-		{
-			newScrollY = 0;
-		}
-		else
-		{
-			newScrollY = rowCount - 1;
-		}
-	}
-
-	if (this.rows_.length && !this.rows_[this.rows_.length - 1].isVisible())
-	{
-		// If some rows are hidden, then we have more than enough rows to
-		// display all the available data, so we should not allow scrolling
-		// to any more than the current scroll position. In a sense we've
-		// scrolled too far, but we don't want to arbitrarily scroll around 
-		// without permission (do we?)
-		newMax = newScrollY;
-	}
-	else if (rowCount <= this.getFullyVisibleRowCount())
-	{
-		// Leave the maximum to 0 to disable scrolling.
-	}
-	else
-	{
-		newMax = rowCount - this.getFullyVisibleRowCount();
-	}
-
-	// if the maximum is reduced to less than the current value,
-	// the value will be adjusted to match it, which will trigger
-	// a refreshAll(), so we suppress that by muting events.
-	this.scrollBar_.rangeModel.setMute(true);
-	this.scrollBar_.setMaximum(newMax);
 	
 	if (this.drag != com.qwirx.grid.Grid.NO_SELECTION)
 	{
@@ -503,9 +455,7 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
 	
 	// setValue will reset the mute flag, so we can't suppress it,
 	// so let's take advantage of it to call refreshAll for us.
-	// this.scrollBar_.setValue(newVal);
-	this.scrollBar_.rangeModel.setMute(false);
-	this.setScroll(this.scrollOffset_.x, newScrollY);
+	this.setScroll(this.scrollOffset_.x, this.scrollOffset_.y);
 };
 
 /**
@@ -513,23 +463,50 @@ com.qwirx.grid.Grid.prototype.handleRowCountChange = function(e)
  * match.
  * @todo currently the x value is ignored.
  */
-com.qwirx.grid.Grid.prototype.setScroll = function(x, y)
+com.qwirx.grid.Grid.prototype.setScroll = function(newScrollX, newScrollY)
 {
 	var oldScrollOffset = goog.object.clone(this.scrollOffset_);
-	this.scrollOffset_.y = y;
-	var newVal = this.scrollBar_.getMaximum() - y;
+	var rowCount = this.getRowCount();
 	
-	if (newVal < 0)
+	// Changing datasource row count or scroll position so that no rows
+	// are visible is not allowed. We should always have at least one row
+	// visible. So adjust the scroll position here if necessary.
+	if (newScrollY >= rowCount)
 	{
-		// Scrollbar is scrolled when it shouldn't be allowed.
-		// Not sure whether to leave it out of sync, or force
-		// an automatic scroll of the grid to keep them in sync.
-		// For now I'll leave them out of sync, because changing
-		// datasource row count so that grid has fewer rows
-		// should not change position.
-		newVal = 0; // doesn't correspond with actual grid scroll
+		if (rowCount == 0)
+		{
+			newScrollY = 0;
+		}
+		else
+		{
+			newScrollY = rowCount - 1;
+		}
+	}
+	
+	var fullyVisibleRows = this.getFullyVisibleRowCount();
+	var newMax = rowCount - fullyVisibleRows;
+	if (newMax < newScrollY)
+	{
+		// If some rows are hidden, then we have more than enough rows to
+		// display all the available data, so we should not allow scrolling
+		// to any more than the current scroll position. In a sense we've
+		// scrolled too far, but we don't want to arbitrarily scroll around 
+		// without permission (do we?)
+		com.qwirx.grid.log("scroll newMax adjusted from " + newMax +
+			" to " + newScrollY + " to avoid invalidating current position");
+		newMax = newScrollY;
 	}
 
+	this.scrollOffset_.y = newScrollY;
+	
+	// if the maximum is reduced to less than the current value,
+	// the value will be adjusted to match it, which will trigger
+	// a refreshAll(), so we suppress that by muting events.
+	this.scrollBar_.rangeModel.setMute(true);
+	this.scrollBar_.setMaximum(newMax);
+	this.scrollBar_.rangeModel.setMute(false);
+	
+	var newVal = newMax - newScrollY;
 	if (this.scrollBar_.getValue() != newVal)
 	{
 		// Will send a CHANGE event to the scrollbar, which calls
@@ -540,7 +517,7 @@ com.qwirx.grid.Grid.prototype.setScroll = function(x, y)
 		this.scrollBar_.setValue(newVal);
 	}
 	
-	if (oldScrollOffset.y != y)
+	if (oldScrollOffset.y != newScrollY)
 	{
 		// If the scroll offset has changed, then we need to refresh all rows.
 		this.refreshAll();
@@ -548,7 +525,7 @@ com.qwirx.grid.Grid.prototype.setScroll = function(x, y)
 		// {refreshAll} no longer updates the highlight rules for us,
 		// so we have to do that ourselves.
 		this.updateSelection_(/* force */ true);
-	}	
+	}
 };
 
 com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent =
@@ -731,16 +708,6 @@ com.qwirx.grid.Grid.prototype.updateGridRow = function(gridRowIndex)
 	}
 	
 	row.setValues(colValues);
-	
-	// Mute events to avoid an infinite loop where we end up calling
-	// refreshAll() which calls handleRowUpdate() again
-	var oldMute = this.scrollBar_.rangeModel.mute_;
-	this.scrollBar_.rangeModel.setMute(true);
-	var oldScroll = this.scrollOffset_.y;
-	var newMax = this.getRowCount() - this.getFullyVisibleRowCount();
-	this.scrollBar_.setMaximum(newMax);
-	this.scrollBar_.setValue(newMax - oldScroll);
-	this.scrollBar_.rangeModel.setMute(oldMute);
 };
 
 com.qwirx.grid.Grid.prototype.getVisibleRowCount = function()
@@ -1309,11 +1276,28 @@ com.qwirx.grid.Grid.prototype.updateRowVisibility = function()
 		this.rows_[i].setVisible(visible);
 	}
 	
-	// May need to add rows, if we have enough data to fill them
-	for (var i = this.rows_.length + this.scrollOffset_.y;
-		i < recordCount && !this.isPartialLastRow(); i++)
+	// May need to add rows until the last one is not fully visible.
+	// However we might not have a stylesheet loaded yet, so the newly
+	// added rows might have zero height, and we could add an infinite
+	// number of those, so don't do that.
+	
+	// Stop adding rows when any of the following conditions is true:
+	// * the height of the last added row is 0 (unknown)
+	// * the last row is not fully visible (falling off the bottom of the grid)
+	// * there are enough rows in the grid to display the entire datasource
+	for (var i = len; true; i++)
 	{
-		this.addRow(); // also populates the new row
+		var lastRow = this.rows_[this.rows_.length - 1];
+		if (lastRow && !lastRow.isFullyVisible()) break;
+		
+		var dataRow = i + this.scrollOffset_.y;
+		if (dataRow >= recordCount) break;
+		
+		var visible = (dataRow < recordCount);
+		var addedRow = this.addRow(visible);
+		// also populates the new row, if necessary
+		
+		if (addedRow.getRowElement().clientHeight == 0) break;
 	}
 };
 
@@ -1349,12 +1333,12 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 
 com.qwirx.grid.Grid.Row.prototype.setVisible = function(visible)
 {
-	this.grid_.renderer_.setVisible(this.getRowElement(), visible);
+	this.tableRowElement_.style.visibility = visible ? "" : 'hidden';
 };
 
 com.qwirx.grid.Grid.Row.prototype.isVisible = function()
 {
-	return this.grid_.renderer_.isVisible(this.getRowElement());
+	return this.tableRowElement_.style.visibility != 'hidden';
 };
 
 com.qwirx.grid.Grid.prototype.handleScrollEvent = function(e)

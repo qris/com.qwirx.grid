@@ -146,7 +146,7 @@ function assertSelection(grid, message, x1, y1, x2, y2)
 		
 		assertEquals(message + ": wrong visible status for " +
 			"grid row " + y + ", data row " + dataRow,
-			shouldBeVisible, goog.style.isElementShown(rowElement));
+			shouldBeVisible ? "" : "hidden", rowElement.style.visibility);
 		
 		if (shouldBeVisible)
 		{
@@ -539,7 +539,8 @@ function testGridInsertRowAt()
 			"on screen, so the number of grid rows should equal datasource " +
 			"rows", ds.getCount(), grid.getVisibleRowCount());
 		
-		if(grid.isPartialLastRow())
+		var lastRow = grid.rows_[grid.rows_.length - 1];
+		if (lastRow.isVisible() && !lastRow.isFullyVisible())
 		{
 			// last time around; we'll exit the loop after adding another row,
 			// because the grid isn't keeping up.
@@ -569,7 +570,8 @@ function testGridInsertRowAt()
 			"to scroll", 0, grid.scrollOffset_.y);
 	}
 	
-	assertTrue(grid.isPartialLastRow());
+	var lastRow = grid.rows_[grid.rows_.length - 1];
+	assertTrue(lastRow.isVisible() && !lastRow.isFullyVisible());
 	assertEquals("the last physical grid row is partially hidden, " +
 		"so the scroll bar should be enabled to allow access to it",
 		ds.getCount() - grid.getFullyVisibleRowCount(),
@@ -703,8 +705,8 @@ function assertGridRowsVisible(grid, numRows)
 	{
 		var visible = (i < numRows);
 		assertEquals("Display style is wrong for row " + i +
-			" with " + numRows + " total rows", visible ? '' : 'none',
-			grid.rows_[i].getRowElement().style.display);
+			" with " + numRows + " total rows", visible ? '' : 'hidden',
+			grid.rows_[i].getRowElement().style.visibility);
 	}
 }
 
@@ -728,7 +730,7 @@ function testGridRespondsToDataSourceRowCountChanges()
 	assertGridRowsVisible(grid, 1);
 
 	// Keep adding rows until they can't all be displayed
-	while (grid.getFullyVisibleRowCount() == ds.getCount())
+	while (grid.getFullyVisibleRowCount() >= ds.getCount())
 	{
 		ds.setRowCount(ds.getCount() + 1);
 	}
@@ -1111,6 +1113,20 @@ function assertNavigateGrid(grid, startPosition, button,
 	assertEquals("final scroll bar position",
 		expectedScrollBarMaximum - expectedScroll,
 		grid.scrollBar_.getValue());
+	
+	var lastRow = grid.rows_[grid.rows_.length - 1];
+	assertTrue("The last row should be partially visible",
+		lastRow.isPartiallyVisible());
+	assertFalse("The last row should not be fully visible",
+		lastRow.isFullyVisible());
+	for (var i = 0; i < grid.rows_.length; i++)
+	{
+		var dataRow = i + expectedScroll;
+		var shouldBeVisible = (dataRow < grid.getRowCount());
+		assertEquals("all grid rows that correspond to data rows should be " +
+			"visible", shouldBeVisible ? "" : "hidden",
+			grid.rows_[i].tableRowElement_.style.visibility);
+	}
 
 	// Check that the row highlighter has been updated
 	var currentGridRowIndex;
@@ -1395,14 +1411,18 @@ function testGridRowsAreAllOnScreen()
 			" should be less than grid element bottom " +
 			(outer.offsetTop + outer.offsetHeight),
 			elem.offsetTop <= outer.offsetTop + outer.offsetHeight);
-		var expectOverflow = (i == grid.rows_.length - 1 &&
-			grid.isPartialLastRow());
+		var expectOverflow = (i == grid.rows_.length - 1);
 		assertEquals("row " + i + " bottom " +
 			(elem.offsetTop + elem.offsetHeight) + " should " +
 			(expectOverflow ? "not " : "") + "be less than " +
 			"grid element bottom " + (outer.offsetTop + outer.offsetHeight),
 			expectOverflow,
 			elem.offsetTop + elem.offsetHeight > outer.offsetTop + outer.offsetHeight);
+		
+		assertEquals("All rows should be at least partially visible", true,
+			row.isPartiallyVisible());
+		assertEquals("The last row should not be fully visilbe",
+			!expectOverflow, row.isFullyVisible());
 		
 		var cells = row.tableDataCells_;
 		for (var j = 1; j < cells.length; j++)
@@ -1504,8 +1524,10 @@ function test_changing_row_height_adds_rows_when_needed()
 				"grid.canAddMoreRows() should return false", 
 				grid.canAddMoreRows());
 			
+			var lastRow = grid.rows_[grid.rows_.length - 1];
 			assertTrue("The last physical grid row is partially hidden, and " +
-				"the grid should know it", grid.isPartialLastRow());
+				"the grid should know it", lastRow.isPartiallyVisible() &&
+				!lastRow.isFullyVisible());
 			
 			assertEquals("All records in the Datasource should be at least " +
 				"partially visible", newCount, grid.getVisibleRowCount());
@@ -1524,8 +1546,9 @@ function test_changing_row_height_adds_rows_when_needed()
 				"grid.canAddMoreRows() should return true",
 				grid.canAddMoreRows());
 			
-			assertFalse("The last physical grid row is fully visible, and " +
-				"the grid should know it", grid.isPartialLastRow());
+			assertTrue("The last physical grid row is fully visible, and " +
+				"the grid should know it", 
+			   grid.rows_[grid.rows_.length - 1].isFullyVisible());
 			
 			assertEquals("All records in the Datasource should be at least " +
 				"partially visible", newCount, grid.getVisibleRowCount());
