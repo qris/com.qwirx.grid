@@ -1749,8 +1749,8 @@ function test_grid_create_new_row_then_discard_2()
 	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
 		com.qwirx.data.Cursor.NEW);
 	assert_grid_response_to_dirty_dialog(grid,
-		goog.ui.Dialog.DefaultButtonKeys.CANCEL,
-		[]);
+		goog.ui.Dialog.DefaultButtonKeys.CANCEL /* response_button */,
+		[] /* expected_cursor_events */);
 	assertEquals("There should still be " + oldCount + " real data rows, " +
 		"and one new row, accessible via the grid", oldCount + 1,
 		grid.getRowCount());
@@ -1759,11 +1759,11 @@ function test_grid_create_new_row_then_discard_2()
 	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
 		com.qwirx.data.Cursor.NEW);
 	assert_grid_response_to_dirty_dialog(grid,
-		goog.ui.Dialog.DefaultButtonKeys.CONTINUE,
+		goog.ui.Dialog.DefaultButtonKeys.CONTINUE /* response_button */,
 		[
 			com.qwirx.data.Cursor.Events.DISCARD,
 			com.qwirx.data.Cursor.Events.MOVE_TO
-		]);
+		] /* expected_cursor_events */);
 	assertEquals("There should still be " + oldCount + " real data rows " +
 		"and no new rows, accessible via the grid", oldCount,
 		grid.getRowCount());
