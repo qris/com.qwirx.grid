@@ -810,10 +810,16 @@ com.qwirx.grid.Grid.prototype.handleMouseDown = function(e)
 	var info = this.getDragInfo(e);
 	if (!info) return;
 	
-	if (this.cursor_.getPosition() != info.row)
+	var newPosition = info.row;
+	if (newPosition == this.getCursor().getRowCount() &&
+		this.isPositionedOnTemporaryNewRow)
 	{
-		this.cursor_.setPosition(info.row);
-		this.updateCurrentRow_();
+		newPosition = com.qwirx.data.Cursor.NEW;
+	}
+	
+	if (this.cursor_.getPosition() != newPosition)
+	{
+		this.cursor_.setPosition(newPosition);
 	}
 	
 	this.prepareForSelection();

@@ -1899,6 +1899,18 @@ function test_grid_create_new_row_then_save_without_moving()
 	grid.getCursor().setPosition(1);
 	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
 		com.qwirx.data.Cursor.NEW);
+	
+	// Click on the row again, check that it doesn't throw an exception
+	assertEquals(com.qwirx.data.Cursor.NEW, grid.getCursor().getPosition());
+	assertEquals("We're positioned on a NEW row, so the grid should have " +
+		"one more row than the Datasource", ds.getCount() + 1,
+		grid.getRowCount());
+	var cell = grid.getCell(0, grid.getRowCount() - 1);
+	com.qwirx.test.FakeClickEvent.send(cell.tableCell);
+	assertEquals("We should still be positioned on NEW after clicking " +
+		"on a cell on the temporary NEW row", com.qwirx.data.Cursor.NEW,
+		grid.getCursor().getPosition());
+	
 	assert_grid_create_new_row_then_save_without_moving(grid,
 		com.qwirx.data.Cursor.NEW, oldCount);
 	assertEquals("There should now be " + (oldCount + 1) + " real data rows, " +
