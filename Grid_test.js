@@ -299,9 +299,8 @@ function testGridHighlightModeCells()
 		2, 1, 0, 1);
 }
 
-function testGridLoadsDataFromDataSource()
+function assertGridShowsDataFromDataSource(grid)
 {
-	var grid = initGrid(ds);
 	var columns = ds.getColumns();
 	var expected = [];
 	
@@ -321,6 +320,12 @@ function testGridLoadsDataFromDataSource()
 	}
 	
 	assertGridContents(grid, expected);
+}
+
+function testGridLoadsDataFromDataSource()
+{
+	var grid = initGrid(ds);
+	assertGridShowsDataFromDataSource(grid);
 }
 
 function testGridHighlightModeColumns()
@@ -581,18 +586,32 @@ function testGridInsertRowAt()
 
 function assertGridContents(grid, data)
 {
-	assertEquals('Wrong number of rows in grid',
-		data.length, grid.getVisibleRowCount());
+	// There can be more rows in the grid than the data source, if some
+	// rows have been deleted and there aren't enough left to fill the
+	// visible grid; or fewer, if there are more rows in the data source
+	// than can be displayed on the grid.
+	/*
+	assertTrue('Not enough rows in grid', data.length >=
+		grid.getVisibleRowCount());
+	*/
 
-	for (var rowIndex = 0; rowIndex < data.length; rowIndex++)
+	for (var rowIndex = 0; rowIndex < grid.rows_.length; rowIndex++)
 	{
-		var rowData = data[rowIndex];
-		for (var colIndex = 0; colIndex < rowData.length; colIndex++)
+		if (rowIndex + grid.scrollOffset_.y >= data.length)
 		{
-			var cell = grid.rows_[rowIndex].getColumns()[colIndex].tableCell;
-			assertEquals('Wrong value for row ' + rowIndex +
-				' column ' + colIndex,
-				rowData[colIndex].value.toString(), cell.innerHTML);
+			assertFalse(grid.rows_[rowIndex].isVisible());
+		}
+		else
+		{
+			assertTrue(grid.rows_[rowIndex].isVisible());
+			var rowData = data[rowIndex + grid.scrollOffset_.y];
+			for (var colIndex = 0; colIndex < rowData.length; colIndex++)
+			{
+				var cell = grid.rows_[rowIndex].getColumns()[colIndex].tableCell;
+				assertEquals('Wrong value for row ' + rowIndex +
+					' column ' + colIndex,
+					rowData[colIndex].value.toString(), cell.innerHTML);
+			}
 		}
 	}
 }
@@ -1963,9 +1982,61 @@ function test_grid_cell_styles()
 	}
 }
 
-// TODO a "row count change" is not a valid event for a Datasource to send,
-// because the receiver has no idea which rows have been added or removed,
-// so it doesn't know what to redraw. Remove this event.
+function test_grid_response_to_record_deletion()
+{
+	var grid = initGrid(ds);
+	
+	// Append enough rows that some are off screen
+	for (var i = 0; i < grid.getVisibleRowCount(); i++)
+	{
+		ds.add({product: 'new product ' + i,
+			strength: 'Better than product ' + (i-1),
+			weakness: 'Soon to be obsolete'});
+	}
+	
+	grid.setSelection(0, 3, 1, 6);
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be the same as before after " +
+		"deletion of offscreen row", 0, 3, 1, 6);
+	
+	ds.remove(grid.getVisibleRowCount()); // off screen
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be the same as before after " +
+		"deletion of offscreen row", 0, 3, 1, 6);
+	
+	ds.remove(7); // after selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be the same as before after " +
+		"deletion of row after selection", 0, 3, 1, 6);
+
+	ds.remove(6); // last row of selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be reduced after deletion of " +
+		"row at end of selection", 0, 3, 1, 5);
+	
+	ds.remove(4); // within selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be reduced after deletion of " +
+		"row in the middle of selection", 0, 3, 1, 4);
+	
+	ds.remove(3); // beginning of selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be reduced after deletion of " +
+		"row at beginning of selection", 0, 3, 1, 3);
+	
+	ds.remove(2); // before selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be shifted up after deletion " +
+		"of row before selection", 0, 2, 1, 2);
+	
+	ds.remove(2); // only remaining row in the selection
+	assertGridShowsDataFromDataSource(grid);
+	assertSelection(grid, "selection should be set to NO_SELECTION after " +
+		"deletion of the only remaining row in the selection", -1, -1, -1, -1);
+}
+
+// TODO How does the Grid respond to a row being deleted? Whether it's on or
+// off screen? Before, inside or after a selection?
 
 // TODO test adding more rows to a grid while scrolled (addRow gridRowIndex
 // != dataRowIndex confusion)

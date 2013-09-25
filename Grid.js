@@ -618,14 +618,31 @@ com.qwirx.grid.Grid.prototype.adjustSelectionAround = function(dataRowIndex,
 			// selection is entirely before and does not include the 
 			// affected row at all, so we don't need to change it.
 		}
-		else if (this.drag.y1 < dataRowIndex)
+		else if (amount < 0 && this.drag.y1 == dataRowIndex &&
+			this.drag.y2 == dataRowIndex)
 		{
+			// the deleted row is the only remaining row in the selection
+			this.drag = com.qwirx.grid.Grid.NO_SELECTION;
+		}
+		// Adding a row on the first row of the selection shifts it down,
+		// but deleting the same row reduces the selection instead
+		else if ((amount < 0 && this.drag.y1 <= dataRowIndex) ||
+			(amount > 0 && this.drag.y1 < dataRowIndex))
+		{
+			goog.asserts.assert(this.drag.y2 >= dataRowIndex,
+				"the deleted row should be within the selection");
 			// selection covers the affected row, so adjust the end point of
 			// the selection to end on the same row as before.
 			this.drag.y2 += amount;
 		}
 		else
 		{
+			goog.asserts.assert((amount < 0 && this.drag.y1 > dataRowIndex) ||
+				(amount > 0 && this.drag.y1 >= dataRowIndex),
+				"the deleted row should be before the beginning of the selection");
+			goog.asserts.assert((amount < 0 && this.drag.y2 > dataRowIndex) ||
+				(amount > 0 && this.drag.y2 >= dataRowIndex),
+				"the deleted row should be before the end of the selection");
 			// selection is after the affected row, so move it up/down
 			// by 1 row.
 			this.drag.y1 += amount;
