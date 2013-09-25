@@ -1660,19 +1660,22 @@ function test_grid_create_new_row_then_discard()
 }
 
 function assert_grid_response_to_dirty_dialog(grid, response_button,
-	expected_cursor_events)
+	expected_cursor_events, opt_eventingCallback, opt_AttemptedPosition)
 {
 	expected_cursor_events = [com.qwirx.data.Cursor.Events.BEFORE_DISCARD].
 		concat(expected_cursor_events);
 	var old_position = grid.getCursor().getPosition();
-	var attempted_position = grid.getDatasource().getCount() - 1;
+	if (opt_AttemptedPosition === undefined)
+	{
+		opt_AttemptedPosition = grid.getDatasource().getCount() - 1;
+	}
 	var new_row_position = grid.getDatasource().getCount();
 	
 	var actual_events = com.qwirx.test.assertEvents(grid.getCursor(),
 		expected_cursor_events,
 		function()
 		{
-			expect_dialog(function()
+			expect_dialog(opt_eventingCallback || function()
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
@@ -1687,8 +1690,9 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 			else
 			{
 				assertEquals("Cursor should be positioned at " +
-					attempted_position + " after clicking " + response_button,
-					attempted_position, grid.getCursor().getPosition());
+					opt_AttemptedPosition + " after clicking " +
+					response_button, opt_AttemptedPosition,
+					grid.getCursor().getPosition());
 				assertFalse("Cursor should no longer be dirty after " +
 					"clicking " + response_button,
 					grid.getCursor().isDirty());
@@ -1705,7 +1709,7 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 			{
 				assertEquals("The requested position should be stored " +
 					"in the " + event.type + " event object",
-					attempted_position, event.getNewPosition());
+					opt_AttemptedPosition, event.getNewPosition());
 			}
 			
 			if (event.type == com.qwirx.data.Cursor.Events.SAVE)
@@ -1766,9 +1770,9 @@ function test_grid_create_new_row_then_discard_2()
 	assertEquals(oldCount - 1, grid.getCursor().getPosition());
 }
 
-function test_grid_create_new_row_then_save_and_move()
+function assert_grid_create_new_row_then_save_and_move(grid, eventingCallback,
+	opt_AttemptedPosition)
 {
-	var grid = initGrid(ds);
 	var oldCount = ds.getCount();
 	
 	assert_setup_modified_grid_row(grid, grid.nav_.newButton_,
@@ -1778,11 +1782,26 @@ function test_grid_create_new_row_then_save_and_move()
 		[
 			com.qwirx.data.Cursor.Events.SAVE,
 			com.qwirx.data.Cursor.Events.MOVE_TO
-		]);
+		],
+		eventingCallback, opt_AttemptedPosition);
+	
 	assertEquals("There should now be " + oldCount + " real data rows, " +
 		"and no new rows, accessible via the grid", oldCount + 1,
 		grid.getRowCount());
-	assertEquals(oldCount - 1, grid.getCursor().getPosition());
+	assertEquals(opt_AttemptedPosition, grid.getCursor().getPosition());
+}
+
+function test_grid_create_new_row_then_save_and_move()
+{
+	var grid = initGrid(ds);
+	assert_grid_create_new_row_then_save_and_move(grid, function()
+		{
+			com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
+		}, ds.getCount() - 1 /* opt_AttemptedPosition */);
+	assert_grid_create_new_row_then_save_and_move(grid, function()
+		{
+			com.qwirx.test.FakeClickEvent.send(grid.nav_.firstButton_);
+		}, 0 /* opt_AttemptedPosition */);
 
 	// TODO what happens if we sneak in changes while the modal dialog is open?
 	// TODO what happens if we discard without navigating (opt_newPosition is null)

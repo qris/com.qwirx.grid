@@ -1529,7 +1529,7 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 				cursor.discard(newPosition);
 			}
 			
-			if (newPosition)
+			if (newPosition !== undefined)
 			{
 				// Resume the previously cancelled movement
 				cursor.setPosition(newPosition);
