@@ -172,6 +172,7 @@ function assertSelection(grid, message, x1, y1, x2, y2)
 function testGridHighlightModeCells()
 {
 	var grid = initGrid(ds);
+	assertEquals(com.qwirx.grid.Grid.DragMode.NONE, grid.dragMode_);
 	
 	com.qwirx.test.FakeBrowserEvent.mouseMove(grid.getCell(0, 0).tableCell);
 	assertSelection(grid, 'Selection should not have changed without click',

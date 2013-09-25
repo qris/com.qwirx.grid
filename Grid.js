@@ -68,6 +68,7 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	this.setSupportedState(goog.ui.Component.State.FOCUSED, false);
 	
 	this.drag = com.qwirx.grid.Grid.NO_SELECTION;
+	this.dragMode_ = com.qwirx.grid.Grid.DragMode.NONE;
 	
 	this.scrollOffset_ = { x: 0, y: 0 };
 	
