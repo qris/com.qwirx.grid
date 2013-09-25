@@ -1057,6 +1057,42 @@ function assertNavigationButtonStates(grid)
 		rows == -1 || position != rows - 1, grid.nav_.lastButton_.isEnabled());
 }
 
+function assertCurrentRowHighlight(grid)
+{
+	// Check that the row highlighter has been updated
+	var currentPosition = grid.getCursor().getPosition();
+	var currentGridRowIndex;
+	
+	if (currentPosition == com.qwirx.data.Cursor.NEW)
+	{
+		currentGridRowIndex = grid.getCursor().getRowCount() -
+			grid.scrollOffset_.y;
+		// one row past the far end of the data source
+	}
+	else
+	{
+		var currentDataRowIndex = currentPosition;
+		currentGridRowIndex = currentDataRowIndex - grid.scrollOffset_.y;
+	}
+	
+	var css;
+	
+	if (currentGridRowIndex >= 0 && 
+		currentGridRowIndex < grid.rows_.length)
+	{
+		css = 'table#' + grid.dataTable_.id +
+			' > tr.row_' + currentGridRowIndex + 
+			' > th { background-color: #88f; }';
+	}
+	else
+	{
+		css = "";
+	}	
+
+	assertEquals("Wrong highlight CSS to highlight grid row " + 
+		currentGridRowIndex, css, grid.currentRowStyle_.textContent);
+}	
+
 function assertNavigateGrid(grid, startPosition, button,
 	expectedPosition, expectedScroll, positionMessage, scrollMessage)
 {
@@ -1128,36 +1164,10 @@ function assertNavigateGrid(grid, startPosition, button,
 			"visible", shouldBeVisible ? "" : "hidden",
 			grid.rows_[i].tableRowElement_.style.visibility);
 	}
+	
+	assertEquals(expectedPosition, grid.getCursor().getPosition());
+	assertCurrentRowHighlight(grid, expectedPosition);
 
-	// Check that the row highlighter has been updated
-	var currentGridRowIndex;
-	
-	if (expectedPosition == com.qwirx.data.Cursor.NEW)
-	{
-		currentGridRowIndex = rows - expectedScroll;
-		// past the far end of the data source
-	}
-	else
-	{
-		var currentDataRowIndex = expectedPosition;
-		currentGridRowIndex = currentDataRowIndex - expectedScroll;
-	}
-	
-	var css;
-	
-	if (currentGridRowIndex >= 0 && 
-		currentGridRowIndex < grid.rows_.length)
-	{
-		css = 'table#' + grid.dataTable_.id +
-			' > tr#row_' + currentGridRowIndex + 
-			' > th { background-color: #88f; }';
-	}
-	else
-	{
-		css = "";
-	}	
-
-	assertEquals(css, grid.currentRowStyle_.textContent);
 	// button states should have been updated too
 	assertNavigationButtonStates(grid);
 }
@@ -1910,6 +1920,7 @@ function test_grid_create_new_row_then_save_without_moving()
 	assertEquals("We should still be positioned on NEW after clicking " +
 		"on a cell on the temporary NEW row", com.qwirx.data.Cursor.NEW,
 		grid.getCursor().getPosition());
+	assertCurrentRowHighlight(grid);
 	
 	assert_grid_create_new_row_then_save_without_moving(grid,
 		com.qwirx.data.Cursor.NEW, oldCount);

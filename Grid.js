@@ -905,7 +905,7 @@ com.qwirx.grid.Grid.Row.prototype.setHighlighted = function(enable)
  * it is the currently active row, pointed to by the grid's cursor's
  * position, or not. Only one row should be current at any time.
  */
-com.qwirx.grid.Grid.prototype.updateCurrentRow_ = function()
+com.qwirx.grid.Grid.prototype.updateCurrentRowHighlight = function()
 {
 	var currentDataRowIndex = this.cursor_.getPosition();
 	var currentGridRowIndex;
@@ -925,7 +925,7 @@ com.qwirx.grid.Grid.prototype.updateCurrentRow_ = function()
 		currentGridRowIndex < this.rows_.length)
 	{
 		css = 'table#' + this.dataTable_.id +
-			' > tr#row_' + currentGridRowIndex + 
+			' > tr.row_' + currentGridRowIndex + 
 			' > th { background-color: #88f; }';
 	}
 	else
@@ -1335,7 +1335,7 @@ com.qwirx.grid.Grid.prototype.refreshAll = function()
 		}
 	}
 	
-	this.updateCurrentRow_();
+	this.updateCurrentRowHighlight();
 };
 
 com.qwirx.grid.Grid.Row.prototype.setVisible = function(visible)
@@ -1425,7 +1425,7 @@ com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
 	
 	if (oldScroll == newScroll)
 	{
-		this.updateCurrentRow_();
+		this.updateCurrentRowHighlight();
 	}
 	
 	this.dispatchEvent(com.qwirx.grid.Grid.Events.CURSOR_MOVED);
