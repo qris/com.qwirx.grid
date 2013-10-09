@@ -27,6 +27,17 @@ table.fb-grid-data-table > tr > td
 	background: white;
 }
 
+.com_qwirx_grid_Grid_MIDDLE
+{
+	width: 20em;
+}
+
+.com_qwirx_grid_Grid_Row_wrapper
+{
+	height: 1.2em;
+	overflow: hidden;
+}
+
 .fb-grid
 {
 	position: relative;

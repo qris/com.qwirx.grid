@@ -20,6 +20,12 @@ goog.dom.appendChild(document.body, domContainer);
 var mockController, columns, data, ds, dialog_response;
 var stubs = new goog.testing.PropertyReplacer();
 
+var testColumns = [
+   {name: 'product', caption: 'Product'},
+   {name: 'strength', caption: 'Special Ability'},
+   {name: 'weakness', caption: 'Hidden Weakness'}
+];
+
 function setUp()
 {
 	com.qwirx.ui.Dialog.isTestMode = true;
@@ -29,11 +35,6 @@ function setUp()
 	domContainer.style.overflow = 'hidden';
 	goog.dom.removeChildren(domContainer);
 	
-	columns = [
-		{name: 'product', caption: 'Product'},
-		{name: 'strength', caption: 'Special Ability'},
-		{name: 'weakness', caption: 'Hidden Weakness'}
-	];
 	data = [
 		{product: 'milk', strength: 'Reduces bitterness, especially in adults',
 			weakness: 'Goes bad quickly, not vegan compatible'},
@@ -44,7 +45,7 @@ function setUp()
 		{product: 'soymilk', strength: 'Long life, vegan compatible',
 			weakness: 'Tastes like cardboard'},
 	];
-	ds = new com.qwirx.data.SimpleDatasource(columns, data);
+	ds = new com.qwirx.data.SimpleDatasource(testColumns, data);
 	
 	mockController = new goog.testing.MockControl();
 }
@@ -610,7 +611,8 @@ function assertGridContents(grid, data)
 				var cell = grid.rows_[rowIndex].getColumns()[colIndex].tableCell;
 				assertEquals('Wrong value for row ' + rowIndex +
 					' column ' + colIndex,
-					rowData[colIndex].value.toString(), cell.innerHTML);
+					rowData[colIndex].value.toString(), 
+					cell.children[0].innerHTML);
 			}
 		}
 	}
@@ -1505,6 +1507,8 @@ function testInsertRowIntoSelectedArea()
 		"should have no effect", {x1: 1, y1: 4, x2: 3, y2: 8}, grid.drag);
 }
 
+// row height cannot be changed any more
+/*
 function test_changing_row_height_adds_rows_when_needed()
 {
 	var grid = initGrid(ds);
@@ -1616,10 +1620,11 @@ function test_changing_row_height_adds_rows_when_needed()
 		}
 	}
 }
+*/
 
 function test_empty_grid_scroll_maximum_is_valid()
 {
-	var emptyDs = new com.qwirx.data.SimpleDatasource(columns, []);
+	var emptyDs = new com.qwirx.data.SimpleDatasource(testColumns, []);
 	var grid = initGrid(emptyDs);
 	// check that the scroll maximum is valid
 	assertEquals(0, grid.getFullyVisibleRowCount());
@@ -1640,14 +1645,9 @@ function assert_setup_modified_grid_row(grid, button, startPosition)
 	var oldValues = grid.getCursor().getCurrentValues();
 	
 	var rowIndex = grid.getRowCount() - grid.scrollOffset_.y - 1;
-	var cells = grid.rows_[rowIndex].getColumns();
 	
 	// fake a change to dirty the whole row
-	// grid.dispatchEvent('change', cells[0]);
-	grid.setEditableCell(cells[0].tableCell);
-	cells[0].tableCell.innerHTML = 'computers';
-	grid.editableCellField_.dispatchEvent(
-		goog.editor.Field.EventType.DELAYEDCHANGE);
+	grid.rows_[rowIndex].setCellText(0, 'computers');
 	assertTrue("Cursor should be dirty after modifying grid values",
 		grid.getCursor().isDirty());
 	
@@ -1994,6 +1994,8 @@ function test_grid_response_to_record_deletion()
 			weakness: 'Soon to be obsolete'});
 	}
 	
+	grid.setScroll(0, 1);
+   
 	grid.setSelection(0, 3, 1, 6);
 	assertGridShowsDataFromDataSource(grid);
 	assertSelection(grid, "selection should be the same as before after " +
@@ -2033,6 +2035,22 @@ function test_grid_response_to_record_deletion()
 	assertGridShowsDataFromDataSource(grid);
 	assertSelection(grid, "selection should be set to NO_SELECTION after " +
 		"deletion of the only remaining row in the selection", -1, -1, -1, -1);
+}
+
+function test_grid_row_height_is_same_despite_wrapping_content()
+{
+   data = [
+      {product: 'milk', strength: 'Long\nrow',},
+      {product: 'rye bread', strength: 'ordinary row'},
+   ];
+   var ds = new com.qwirx.data.SimpleDatasource(testColumns, data);
+   var grid = new com.qwirx.grid.NavigableGrid(ds);
+   grid.render(domContainer);
+   
+   var row0 = grid.rows_[0].getRowElement();
+   var row1 = grid.rows_[1].getRowElement();
+   assertEquals("Rows should be the same height even if they contain " +
+      "embedded line breaks", row0.clientHeight, row1.clientHeight);
 }
 
 // TODO How does the Grid respond to a row being deleted? Whether it's on or

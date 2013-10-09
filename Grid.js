@@ -359,13 +359,15 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 		if (i < oldCells.length - 1 /* for header cell */)
 		{
 			td = oldCells[i + 1 /* for header cell */];
-			td.innerHTML = textValues[i];
+			td.children[0].innerHTML = textValues[i];
 		}
 		else
 		{
 			var text = textValues[i];
 			var cssClasses = 'com_qwirx_grid_Grid_MIDDLE col_' + i;
-			td = this.grid_.dom_.createDom('td', cssClasses, column.text);
+			var wrapper = this.grid_.dom_.createDom('div',
+				'com_qwirx_grid_Grid_Row_wrapper', textValues[i]);
+			td = this.grid_.dom_.createDom('td', cssClasses, wrapper);
 			goog.dom.appendChild(this.tableRowElement_, td);
 			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
 				com.qwirx.grid.Grid.CellType.MIDDLE;
@@ -385,6 +387,21 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 	
 	this.columns_ = columns;
 	this.tableDataCells_ = newCells;
+};
+
+/**
+ * Modify the contents of a cell in the row. This is a bit of a hack, but
+ * hides the internal details of how the Grid renders cells, with a div
+ * inside them to enforce row height:
+ * http://stackoverflow.com/questions/19282254/how-to-hide-table-row-overflow-take-2/19282721
+ */
+com.qwirx.grid.Grid.Row.prototype.setCellText = function(cellIndex, text)
+{
+	var column = this.columns_[cellIndex];
+	this.grid_.setEditableCell(column.tableCell);
+	column.tableCell.children[0].innerHTML = text;
+	this.grid_.editableCellField_.dispatchEvent(
+		goog.editor.Field.EventType.DELAYEDCHANGE);
 };
 
 /**
@@ -1462,7 +1479,7 @@ com.qwirx.grid.Grid.prototype.handleGridCellValueChange = function(e)
 	var colIndex = gridColumn.getColumnIndex();
 	var dsColumns = this.dataSource_.getColumns();
 	var dsColumn = dsColumns[colIndex];
-	this.getCursor().setFieldValue(dsColumn.name, td.innerHTML);
+	this.getCursor().setFieldValue(dsColumn.name, td.children[0].innerHTML);
 };
 
 /**
