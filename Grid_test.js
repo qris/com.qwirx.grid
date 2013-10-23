@@ -50,13 +50,27 @@ function setUp()
 	mockController = new goog.testing.MockControl();
 }
 
-function expect_dialog(callback, response_button, listener)
+function expect_dialog(callback, expected_content, response_button,
+	listener)
 {
 	assertUndefined("The previous dialog response has not been used: " +
 		com.qwirx.ui.Dialog.dialogResponse,
 		com.qwirx.ui.Dialog.dialogResponse);
 	com.qwirx.ui.Dialog.dialogResponse = response_button;
+	
+	var actual_dialog;
+	goog.events.listen(com.qwirx.ui.Dialog.EventTarget,
+		goog.ui.Dialog.EventType.AFTER_SHOW,
+		function(e)
+		{
+			actual_dialog = e.target;
+		});
+	
 	callback.call(listener);
+	assertNotUndefined("No dialog shown: expected: " + expected_content,
+		actual_dialog);
+	assertEquals("Wrong dialog message", expected_content,
+		actual_dialog.getContent());
 	assertUndefined("Dialog should have been displayed, and " +
 		"com.qwirx.ui.Dialog.dialogResponse cleared",
 		com.qwirx.ui.Dialog.dialogResponse);
@@ -1637,7 +1651,11 @@ function assert_setup_modified_grid_row(grid, button, startPosition)
 		grid.getCursor().discard();
 	}
 	
-	com.qwirx.test.FakeClickEvent.send(button);
+	if (button)
+	{
+		com.qwirx.test.FakeClickEvent.send(button);
+	}
+	
 	assertEquals(startPosition, grid.getCursor().getPosition());
 	assertEquals("should the grid be positioned on a temporary new row?",
 		(grid.getCursor().getPosition() == com.qwirx.data.Cursor.NEW),
@@ -1675,6 +1693,7 @@ function test_grid_create_new_row_then_discard()
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
+				grid.getDirtyMessage(),
 				goog.ui.Dialog.DefaultButtonKeys.CONTINUE);
 		},
 		"Moving off the NEW row should have sent a DISCARD event",
@@ -1688,6 +1707,44 @@ function test_grid_create_new_row_then_discard()
 		});
 	assertEquals(oldCount - 1, grid.getCursor().getPosition());
 }
+
+function assert_event_properties(event, opt_AttemptedPosition,
+	new_row_position)
+{
+	if (event.type == com.qwirx.data.Cursor.Events.BEFORE_DISCARD ||
+		event.type == com.qwirx.data.Cursor.Events.DISCARD ||
+		event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
+	{
+		assertEquals("The requested position should be stored " +
+			"in the " + event.type + " event object",
+			opt_AttemptedPosition, event.getNewPosition());
+	}
+	
+	if (event.type == com.qwirx.data.Cursor.Events.SAVE)
+	{
+		assertEquals("The SAVE event's position should indicate " +
+			"the position of the newly created row", new_row_position,
+			event.getPosition());
+	}
+	else if (event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
+	{
+		// After SAVE, so the new row is already in the datasource.
+		// But the movement is from NEW to a row that really exists,
+		// otherwise we lost (or duplicated) a movement event!
+		assertEquals("The previous cursor position should be " +
+			"stored in the MOVE_TO event object", "NEW",
+			event.getPosition());
+		// Note: event.getNewPosition() was tested above
+		/*
+		assertEquals("The new cursor position should be stored " +
+			"in the MOVE_TO event", attempted_position,
+			event.getPosition());
+		*/
+	}
+	
+	event.stopPropagation();
+	return false; // stop propagation of the event to the default handlers
+}	
 
 function assert_grid_response_to_dirty_dialog(grid, response_button,
 	expected_cursor_events, opt_eventingCallback, opt_AttemptedPosition)
@@ -1709,7 +1766,7 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
-				response_button);
+				grid.getDirtyMessage(), response_button);
 			
 			if (response_button == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
 			{
@@ -1733,39 +1790,8 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 		false, // opt_continue_if_events_not_sent
 		function (event) // opt_eventHandler
 		{
-			if (event.type == com.qwirx.data.Cursor.Events.BEFORE_DISCARD ||
-				event.type == com.qwirx.data.Cursor.Events.DISCARD ||
-				event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
-			{
-				assertEquals("The requested position should be stored " +
-					"in the " + event.type + " event object",
-					opt_AttemptedPosition, event.getNewPosition());
-			}
-			
-			if (event.type == com.qwirx.data.Cursor.Events.SAVE)
-			{
-				assertEquals("The SAVE event's position should indicate " +
-					"the position of the newly created row", new_row_position,
-					event.getPosition());
-			}
-			else if (event.type == com.qwirx.data.Cursor.Events.MOVE_TO)
-			{
-				// After SAVE, so the new row is already in the datasource.
-				// But the movement is from NEW to a row that really exists,
-				// otherwise we lost (or duplicated) a movement event!
-				assertEquals("The previous cursor position should be " +
-					"stored in the MOVE_TO event object", "NEW",
-					event.getPosition());
-				// Note: event.getNewPosition() was tested above
-				/*
-				assertEquals("The new cursor position should be stored " +
-					"in the MOVE_TO event", attempted_position,
-					event.getPosition());
-				*/
-			}
-			
-			event.stopPropagation();
-			return false; // stop propagation of the event to the default handlers
+			return assert_event_properties(event, opt_AttemptedPosition,
+				new_row_position);
 		});
 	
 	return actual_events;
@@ -1842,6 +1868,11 @@ function test_grid_create_new_row_then_save_and_move()
 
 // TODO test grid keyboard event handling: tab, shift-tab, cursor keys, enter, escape
 
+function send_enter_key(grid)
+{
+	goog.testing.events.fireKeySequence(grid.getElement(), 13);
+}
+
 function assert_grid_create_new_row_then_save_without_moving(grid,
 	expectedOldPosition, expectedNewPosition)
 {
@@ -1855,7 +1886,7 @@ function assert_grid_create_new_row_then_save_without_moving(grid,
 		],
 		function()
 		{
-			goog.testing.events.fireKeySequence(grid.getElement(), 13);
+			send_enter_key(grid);
 			
 			assertEquals("Cursor should be positioned at " +
 				expectedNewPosition + " after pressing Enter",
@@ -1985,17 +2016,19 @@ function test_grid_cell_styles()
 function test_grid_response_to_record_deletion()
 {
 	var grid = initGrid(ds);
-	
+
+	// Check that adding rows while scrolled has the right effect.
+	grid.setScroll(0, 1);
+   
 	// Append enough rows that some are off screen
 	for (var i = 0; i < grid.getVisibleRowCount(); i++)
 	{
 		ds.add({product: 'new product ' + i,
 			strength: 'Better than product ' + (i-1),
 			weakness: 'Soon to be obsolete'});
+		assertGridShowsDataFromDataSource(grid);
 	}
 	
-	grid.setScroll(0, 1);
-   
 	grid.setSelection(0, 3, 1, 6);
 	assertGridShowsDataFromDataSource(grid);
 	assertSelection(grid, "selection should be the same as before after " +
@@ -2053,11 +2086,43 @@ function test_grid_row_height_is_same_despite_wrapping_content()
       "embedded line breaks", row0.clientHeight, row1.clientHeight);
 }
 
-// TODO How does the Grid respond to a row being deleted? Whether it's on or
-// off screen? Before, inside or after a selection?
-
-// TODO test adding more rows to a grid while scrolled (addRow gridRowIndex
-// != dataRowIndex confusion)
+function test_grid_row_changed_while_editing_shows_dialog()
+{
+	var grid = initGrid(ds);
+	grid.getCursor().setPosition(1);
+	assert_setup_modified_grid_row(grid, undefined /* button */,
+		1 /* startPosition */);
+	
+	// Change the row behind the user's back
+	var c2 = new com.qwirx.data.Cursor(ds);
+	c2.setPosition(1);
+	c2.setFieldValue('product', 'sausages');
+	c2.save();
+	
+	// Check that trying to save the row shows the appropriate dialog
+	var actual_events = com.qwirx.test.assertEvents(
+		grid.getCursor(), // target
+		[ /* expected_event_types */
+			com.qwirx.data.Cursor.Events.BEFORE_OVERWRITE
+		],
+		function() /* eventing_callback */
+		{
+			expect_dialog(function() { send_enter_key(grid); },
+				grid.getChangedUnderfootMessage(),
+				goog.ui.Dialog.DefaultButtonKeys.CANCEL);
+			assertEquals(1, grid.getCursor().getPosition());
+			assertTrue(grid.getCursor().isDirty());
+		},
+		"Saving the current row when it was changed underfoot should have " +
+		"displayed the changed underfoot dialog", /* opt_message */
+		false, // opt_continue_if_events_not_sent
+		function (event) // opt_eventHandler
+		{
+			return assert_event_properties(event,
+				undefined /* opt_AttemptedPosition */,
+				1 /* new_row_position */);
+		});
+}
 
 // TODO check that updating a row that's being edited is handled
 // appropriately (what is appropriate? an exception event?)

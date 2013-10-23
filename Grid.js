@@ -63,6 +63,9 @@ com.qwirx.grid.Grid = function(datasource, opt_domHelper, opt_renderer)
 	this.cursor_.addEventListener(
 		com.qwirx.data.Cursor.Events.BEFORE_DISCARD,
 		this.handleDirtyMovement, /* capture */ false, this);
+	this.cursor_.addEventListener(
+		com.qwirx.data.Cursor.Events.BEFORE_OVERWRITE,
+		this.handleBeforeOverwriteEvent, /* capture */ false, this);
 	
 	// focusing a grid isn't very useful and looks ugly in Chrome
 	this.setSupportedState(goog.ui.Component.State.FOCUSED, false);
@@ -1520,7 +1523,48 @@ com.qwirx.grid.Grid.prototype.getCell = function(x, y)
  */
 com.qwirx.grid.Grid.prototype.saveChanges = function()
 {
-	this.getCursor().save();
+	try
+	{
+		this.getCursor().save();
+	}
+	catch (e)
+	{
+		if (e instanceof com.qwirx.data.OverwriteBlocked)
+		{
+			// already handled by showing a dialog asking user to confirm
+			/*
+			goog.asserts.assert(this.currentDialog.getContent() ==
+				this.getChangedUnderfootMessage());
+			*/
+		}
+		else
+		{
+			throw(e);
+		}
+	}
+};
+
+/**
+ * @return the localised message that should be displayed to the user when
+ * they try to navigate away from a dirty row (without saving changes).
+ */
+com.qwirx.grid.Grid.prototype.getDirtyMessage = function()
+{
+	return "Moving away from a modified record will discard " +
+		"your changes.<br /><br />Do you want to move anyway, " +
+		"save your changes first, or cancel the movement?";
+};
+
+/**
+ * @return the localised message that should be displayed to the user when
+ * they try to navigate away from a dirty row (without saving changes).
+ */
+com.qwirx.grid.Grid.prototype.getChangedUnderfootMessage = function()
+{
+	return "The contents of the current record have changed while you " +
+		"were editing it.<br /><br />Do you want to save your version " +
+		"of the record (overwriting the other), discard your changes, " +
+		"or cancel the movement?";
 };
 
 /**
@@ -1532,13 +1576,6 @@ com.qwirx.grid.Grid.prototype.saveChanges = function()
  */
 com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 {
-	if (this.currentDialog)
-	{
-		goog.asserts.assert(!this.currentDialog,
-			"Cannot open a new dialog when one is already open: " +
-			this.currentDialog.getContent());
-	}
-	
 	goog.asserts.assertInstanceof(e, com.qwirx.data.Cursor.MovementEvent,
 		"BEFORE_DISCARD events should always be instances of " +
 		"com.qwirx.data.Cursor.MovementEvent");
@@ -1546,9 +1583,7 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 	var cursor = this.getCursor();
 	
 	var dialog = new com.qwirx.ui.Dialog();
-	dialog.setContent("Moving away from a modified record will discard " +
-		"your changes.<br /><br />Do you want to move anyway, " +
-		"save your changes first, or cancel the movement?");
+	dialog.setContent(this.getDirtyMessage());
 	dialog.setTitle('Discard changes to current record?');
 	dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createContinueSaveCancel());
 	dialog.setParentEventTarget(this);
@@ -1577,12 +1612,6 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 			}
 		}, false /* opt_capt */, this /* opt_handler */);
 	
-	goog.events.listen(dialog, goog.ui.Dialog.EventType.AFTER_HIDE,
-		function(e)
-		{
-			this.currentDialog = null;
-		}, false /* opt_capt */, this /* opt_handler */);
-	
 	this.showDialog(dialog);
 	
 	// Cancel the BEFORE_DISCARD event, so that we can choose how to handle
@@ -1595,6 +1624,19 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 
 com.qwirx.grid.Grid.prototype.showDialog = function(dialog)
 {
+	if (this.currentDialog)
+	{
+		goog.asserts.assert(!this.currentDialog,
+			"Cannot open a new dialog when one is already open: " +
+			this.currentDialog.getContent());
+	}
+	
+	goog.events.listen(dialog, goog.ui.Dialog.EventType.AFTER_HIDE,
+		function(e)
+		{
+			this.currentDialog = null;
+		}, false /* opt_capt */, this /* opt_handler */);
+	
 	this.currentDialog = dialog;
 	dialog.setVisible(true);
 };
@@ -1649,4 +1691,47 @@ com.qwirx.grid.Grid.prototype.handleKeyEvent = function(e)
 		e.stopPropagation();
 		return false;
 	}
+};
+
+/**
+ * Called when the Cursor receives a 
+ * {@link com.qwirx.data.Cursor.Events.BEFORE_OVERWRITE} event, which means
+ * that someone tries to move the cursor while it contained dirty data.
+ * We can handle this by offering the user the chance to save or discard
+ * their changes, or cancel the movement.
+ */
+com.qwirx.grid.Grid.prototype.handleBeforeOverwriteEvent = function(e)
+{
+	goog.asserts.assertInstanceof(e, com.qwirx.data.Cursor.RowEvent,
+		"BEFORE_DISCARD events should always be instances of " +
+		"com.qwirx.data.Cursor.RowEvent");
+	var newPosition = e.getPosition();
+	var cursor = this.getCursor();
+	
+	var dialog = new com.qwirx.ui.Dialog();
+	dialog.setContent(this.getChangedUnderfootMessage());
+	dialog.setTitle('Overwrite the current record?');
+	dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createContinueSaveCancel());
+	dialog.setParentEventTarget(this);
+	
+	goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT,
+		function(e)
+		{
+			if (e.key == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
+			{
+				// we already cancelled the save, so nothing to do
+				return;
+			}
+			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.SAVE)
+			{
+				cursor.save(true /* suppress MOVE_TO event */);
+			}
+			else if (e.key == goog.ui.Dialog.DefaultButtonKeys.CONTINUE)
+			{
+				cursor.discard(newPosition);
+			}
+		}, false /* opt_capt */, this /* opt_handler */);
+	
+	this.showDialog(dialog);
+	return false; 
 };
