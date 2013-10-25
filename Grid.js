@@ -245,13 +245,14 @@ com.qwirx.grid.Grid.prototype.exitDocument = function()
 };
 
 com.qwirx.grid.Grid.ATTR_PREFIX = 'com_qwirx_grid_';
-	com.qwirx.grid.Grid.ATTR_PREFIX + 'grid_cell_type';
 com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE =
-	com.qwirx.grid.Grid.ATTR_PREFIX + 'grid_cell_type';
+	com.qwirx.grid.Grid.ATTR_PREFIX + 'cell_type';
 com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW = 
-	com.qwirx.grid.Grid.ATTR_PREFIX + 'grid_row';
+	com.qwirx.grid.Grid.ATTR_PREFIX + 'row';
 com.qwirx.grid.Grid.TD_ATTRIBUTE_COL = 
-	com.qwirx.grid.Grid.ATTR_PREFIX + 'grid_col';
+	com.qwirx.grid.Grid.ATTR_PREFIX + 'col';
+com.qwirx.grid.Grid.TD_ATTRIBUTE_CELL = 
+	com.qwirx.grid.Grid.ATTR_PREFIX + 'cell';
 
 /**
  * Column is a class, not a static index, to allow renumbering and
