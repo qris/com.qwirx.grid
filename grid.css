@@ -12,6 +12,12 @@ table.fb-grid-data-table > tr > th,
 table.fb-grid-data-table > tr > td
 {
 	border: 1px solid #ddd;
+	padding: 0;
+}
+
+table.fb-grid-data-table > tr > th,
+table.fb-grid-data-table > tr > td > .com_qwirx_grid_Grid_Row_wrapper
+{
 	padding: 0.1em 0.2em;
 	white-space: pre-wrap;
 }
@@ -22,7 +28,7 @@ table.fb-grid-data-table > tr > th
 	text-align: left;
 }
 
-table.fb-grid-data-table > tr > td
+table.fb-grid-data-table > tr > td > .com_qwirx_grid_Grid_Row_wrapper
 {
 	background: white;
 }

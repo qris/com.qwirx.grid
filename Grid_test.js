@@ -189,79 +189,87 @@ function testGridHighlightModeCells()
 	var grid = initGrid(ds);
 	assertEquals(com.qwirx.grid.Grid.DragMode.NONE, grid.dragMode_);
 	
-	com.qwirx.test.FakeBrowserEvent.mouseMove(grid.getCell(0, 0).tableCell);
+	var topLeftCell = grid.getCell(0, 0);
+	var wrapper = topLeftCell.wrapper;
+	assertEquals("Top left cell should not be editable yet",
+		"inherit", topLeftCell.wrapper.contentEditable);
+	
+	com.qwirx.test.FakeBrowserEvent.mouseMove(wrapper);
 	assertSelection(grid, 'Selection should not have changed without click',
 		-1, -1, -1, -1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseDown(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseDown(wrapper);
 	assertSelection(grid, 'Selection should have changed with click',
 		0, 0, 0, 0);
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
+	assertEquals("Top left cell should now be editable", "true",
+		wrapper.contentEditable);
 	assertEquals(true, grid.isAllowTextSelection());
 	assertEquals("mousedown should have set current row", 0,
 		grid.getCursor().getPosition());
 		
 	// MOUSEOUT on a different cell is spurious and doesn't change mode
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(1, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(1, 0).wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
 	assertEquals(true, grid.isAllowTextSelection());
 	
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 1).wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
 	assertEquals(true, grid.isAllowTextSelection());
-	var cell = grid.getCell(0, 0).tableCell;
-	assertEquals("Original cell should still be editable",
-		"true", cell.contentEditable);
-	var userSelect = goog.style.getComputedStyle(cell, 'webkitUserSelect');
+	
+	assertEquals("Top left cell should still be editable",
+		"true", wrapper.contentEditable);
+	var userSelect = goog.style.getComputedStyle(topLeftCell.wrapper,
+		'webkitUserSelect');
 	assertEquals("If webkitUserSelect is 'none' then controls in the " +
 		"BorderLayout won't be usable/editable", "text", userSelect);
 
 	// simulate MOUSEOUT to change the drag mode from TEXT to CELLS
 	// this is the original starting cell, and leaving it does change mode
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.CELLS, grid.dragMode_);
 	assertEquals(false, grid.isAllowTextSelection());
 	assertEquals("Original cell should no longer be editable",
-		"inherit", grid.getCell(0, 0).tableCell.contentEditable);
+		"inherit", wrapper.contentEditable);
 
 	// entry into another cell has no effect
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.CELLS, grid.dragMode_);
 	assertEquals(false, grid.isAllowTextSelection());
 	
 	// re-entry into starting cell switches mode back to TEXT
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
 	assertEquals(true, grid.isAllowTextSelection());
 	assertEquals("Original cell should be editable again",
-		"true", grid.getCell(0, 0).tableCell.contentEditable);
+		"true", wrapper.contentEditable);
 
 	// re-exit from starting cell switches mode back to CELLS
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.CELLS, grid.dragMode_);
 	assertEquals(false, grid.isAllowTextSelection());
 	assertEquals("Original cell should no longer be editable",
-		"inherit", grid.getCell(0, 0).tableCell.contentEditable);
+		"inherit", wrapper.contentEditable);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 1).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		0, 0, 0, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 0).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		0, 0, 1, 0);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(wrapper);
 	assertSelection(grid, 'Selection should have changed with reentry to ' +
 		'starting cell', 0, 0, 0, 0);
 
 	// that will have switched the mode back to TEXT, and only
 	// a mouseout will change it back
 	assertEquals(com.qwirx.grid.Grid.DragMode.TEXT, grid.dragMode_);
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(wrapper);
 	assertEquals(com.qwirx.grid.Grid.DragMode.CELLS, grid.dragMode_);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		0, 0, 1, 1);
 
@@ -269,7 +277,7 @@ function testGridHighlightModeCells()
 	// enabled before, to allow keyboard selection afterwards
 	assertEquals(com.qwirx.grid.Grid.DragMode.CELLS, grid.dragMode_);
 	assertEquals(false, grid.isAllowTextSelection());
-	com.qwirx.test.FakeBrowserEvent.mouseUp(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseUp(wrapper);
 	assertEquals(true, grid.isAllowTextSelection());
 	// and set the selection mode back to NONE, so that future
 	// mouse movement events don't cause selection changes
@@ -278,38 +286,38 @@ function testGridHighlightModeCells()
 	assertSelection(grid, 'Selection should not have changed with mouseup',
 		0, 0, 1, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(2, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(2, 1).wrapper);
 	assertSelection(grid, 'Selection should not have changed without another mousedown',
 		0, 0, 1, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseDown(grid.getCell(2, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseDown(grid.getCell(2, 1).wrapper);
 	assertSelection(grid, 'Selection should have changed with click',
 		2, 1, 2, 1);
 	assertEquals("mousedown should have set current row", 1,
 		grid.getCursor().getPosition());
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		2, 1, 1, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 0).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		2, 1, 1, 0);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(1, 1).wrapper);
 	assertSelection(grid, 'Selection should have changed with drag',
 		2, 1, 1, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOut(grid.getCell(0, 1).wrapper);
 	assertSelection(grid, 'Selection should not have changed when mouse ' +
 		'left the grid', 2, 1, 1, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 1).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseOver(grid.getCell(0, 1).wrapper);
 	assertSelection(grid, 'Selection should still be changeable after mouse ' +
 		'left the grid and reentered in a different place',
 		2, 1, 0, 1);
 
-	com.qwirx.test.FakeBrowserEvent.mouseUp(grid.getCell(0, 0).tableCell);
+	com.qwirx.test.FakeBrowserEvent.mouseUp(wrapper);
 	assertSelection(grid, 'Selection should not have changed with mouseup',
 		2, 1, 0, 1);
 }

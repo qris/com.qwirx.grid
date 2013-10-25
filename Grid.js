@@ -346,6 +346,43 @@ com.qwirx.grid.Grid.Row.prototype.isPartiallyVisible = function()
 	return this.isVisibleInternal(true);
 };
 
+com.qwirx.grid.Grid.Cell = function(grid, text, tableCell)
+{
+	this.grid = grid;
+	this.text = text;
+	this.tableCell = tableCell;
+	this.wrapper = tableCell.children[0];
+	tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_CELL] = this;
+};
+
+com.qwirx.grid.Grid.Cell.prototype.setEditable = function(editable)
+{
+	this.editable = editable;
+	
+	if (editable)
+	{
+		this.editor = new goog.editor.SeamlessField(this.wrapper);
+		this.editor.makeEditable();
+		this.editor.focus();
+		
+		this.handleGridCellValueChange_key = goog.events.listen(
+			this.editor,
+			goog.editor.Field.EventType.DELAYEDCHANGE,
+			this.grid.handleGridCellValueChange, /* capture */ false, this);
+	}
+	else
+	{
+		goog.events.unlistenByKey(this.handleGridCellValueChange_key);
+		this.editor.makeUneditable();
+		this.editor.dispose();
+	}
+};
+
+com.qwirx.grid.Grid.Cell.prototype.isEditable = function()
+{
+	return this.editable;
+};
+		
 com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 {
 	var th = this.tableCell_;
@@ -355,15 +392,12 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 	
 	for (var i = 0; i < textValues.length; i++)
 	{
-		var column = {
-			text: textValues[i],
-		};
 		var td;
 		
 		if (i < oldCells.length - 1 /* for header cell */)
 		{
 			td = oldCells[i + 1 /* for header cell */];
-			td.children[0].innerHTML = textValues[i];
+			td.contentWrapper.innerHTML = textValues[i];
 		}
 		else
 		{
@@ -371,17 +405,21 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 			var cssClasses = 'com_qwirx_grid_Grid_MIDDLE col_' + i;
 			var wrapper = this.grid_.dom_.createDom('div',
 				'com_qwirx_grid_Grid_Row_wrapper', textValues[i]);
+			// Make sure we can identify the wrapper div in getDragInfo().
+			wrapper[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
+				com.qwirx.grid.Grid.CellType.WRAPPER;
 			td = this.grid_.dom_.createDom('td', cssClasses, wrapper);
 			goog.dom.appendChild(this.tableRowElement_, td);
 			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] =
 				com.qwirx.grid.Grid.CellType.MIDDLE;
 			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL] = this.grid_.columns_[i];
 			td[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW] = this;
+			td.contentWrapper = wrapper;
 		}
 		
-		column.tableCell = td;
 		newCells.push(td);
-		columns[i] = column;
+		var cell = new com.qwirx.grid.Grid.Cell(this.grid_, textValues[i], td);
+		columns[i] = cell;
 	}
 	
 	for (var i = newCells.length; i < oldCells.length; i++)
@@ -402,9 +440,9 @@ com.qwirx.grid.Grid.Row.prototype.setValues = function(textValues)
 com.qwirx.grid.Grid.Row.prototype.setCellText = function(cellIndex, text)
 {
 	var column = this.columns_[cellIndex];
-	this.grid_.setEditableCell(column.tableCell);
-	column.tableCell.children[0].innerHTML = text;
-	this.grid_.editableCellField_.dispatchEvent(
+	this.grid_.setEditableCell(column);
+	column.wrapper.innerHTML = text;
+	this.grid_.editableCell.editor.dispatchEvent(
 		goog.editor.Field.EventType.DELAYEDCHANGE);
 };
 
@@ -537,6 +575,8 @@ com.qwirx.grid.Grid.prototype.setScroll = function(newScrollX, newScrollY)
 		// nor the scrollbar value will change that time. So we have
 		// to refresh separately, below.
 		this.scrollBar_.setValue(newVal);
+		com.qwirx.grid.log("scroll offset changed to " + 
+			newScrollY + " for " + newVal+"/" + newMax);
 	}
 	
 	if (oldScrollOffset.y != newScrollY)
@@ -818,7 +858,8 @@ com.qwirx.grid.Grid.CellType = {
 	COLUMN_HEAD: "COLUMN_HEAD",
 	ROW_HEAD: "ROW_HEAD",
 	MIDDLE: "MIDDLE",
-	CORNER: "CORNER"
+	CORNER: "CORNER",
+	WRAPPER: "WRAPPER"
 };
 
 com.qwirx.grid.Grid.DragMode = {
@@ -889,7 +930,7 @@ com.qwirx.grid.Grid.prototype.handleMouseDown = function(e)
 	else if (info.cell.type == info.cell.types.MIDDLE)
 	{
 		this.setAllowTextSelection(true);
-		this.setEditableCell(e.target);
+		this.setEditableCell(info.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_CELL]);
 		this.dragMode_ = info.drag.modes.TEXT;
 		this.drag.x1 = this.drag.x2 = info.col;
 		this.drag.y1 = this.drag.y2 = info.row;
@@ -985,7 +1026,16 @@ com.qwirx.grid.Grid.prototype.getDragInfo = function(event)
 {
 	// com.qwirx.freebase.log("dragging: " + e.type + ": " + e.target);
 
-	var cellType = event.target[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE];
+	var td = event.target;
+	
+	if (td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE] ==
+		com.qwirx.grid.Grid.CellType.WRAPPER)
+	{
+		// clicked on the wrapper div, escalate to parent.
+		td = td.parentElement;
+	}
+	
+	var cellType = td[com.qwirx.grid.Grid.TD_ATTRIBUTE_TYPE];
 
 	if (!cellType)
 	{
@@ -1002,11 +1052,12 @@ com.qwirx.grid.Grid.prototype.getDragInfo = function(event)
 		drag: {
 			mode: this.dragMode_,
 			modes: com.qwirx.grid.Grid.DragMode
-		}
+		},
+		tableCell: td
 	};
 	
-	var col = event.target[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL];
-	var row = event.target[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW];
+	var col = td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL];
+	var row = td[com.qwirx.grid.Grid.TD_ATTRIBUTE_ROW];
 	
 	info.col = col ? col.getColumnIndex() : null;
 	info.row = row ? row.getRowIndex()    : null;
@@ -1173,36 +1224,24 @@ com.qwirx.grid.Grid.prototype.updateSelection_ = function(force)
  */
 com.qwirx.grid.Grid.prototype.setEditableCell = function(newCell)
 {
-	if (this.editableCellField_ &&
-		this.editableCellField_.getOriginalElement() != newCell)
+	if (newCell)
 	{
-		this.editableCellField_.makeUneditable();
-		goog.events.unlistenByKey(this.handleGridCellValueChange_key);
-		this.editableCellField_.dispose();
-		this.editableCellField_ = undefined;
+		goog.asserts.assertInstanceof(newCell, com.qwirx.grid.Grid.Cell,
+			"Only instances of com.qwirx.grid.Grid.Cell may be made editable");
 	}
 	
-	if (newCell && !this.editableCellField_)
+	var oldCell = this.editableCell;
+	
+	if (oldCell && oldCell != newCell)
 	{
-		this.editableCellField_ = new goog.editor.SeamlessField(newCell);
-		this.editableCellField_.makeEditable();
-		newCell.focus();
-		com.qwirx.grid.log("set editable cell: " + newCell);
-		
-		this.handleGridCellValueChange_key = goog.events.listen(
-			this.editableCellField_,
-			goog.editor.Field.EventType.DELAYEDCHANGE,
-			this.handleGridCellValueChange, /* capture */ false, this);
-		
-		/*
-		this.editableCellField_.addEventListener(
-			goog.events.EventType.MOUSEDOWN, 
-			function(e)
-			{
-				com.qwirx.grid.log("captured: " +
-					e.type + ": " + e.target);
-			});
-		*/
+		oldCell.setEditable(false);
+		this.editableCell = undefined;
+	}
+	
+	if (newCell && !this.editableCell)
+	{
+		this.editableCell = newCell;
+		newCell.setEditable(true);
 	}
 };
 
@@ -1278,7 +1317,7 @@ com.qwirx.grid.Grid.prototype.handleMouseOver = function(e)
 			com.qwirx.grid.log("restored selection, switching to TEXT mode");
 			this.dragMode_ = info.drag.modes.TEXT;
 			this.setAllowTextSelection(true);
-			this.setEditableCell(e.target);
+			this.setEditableCell(info.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_CELL]);
 		}
 		else
 		{
@@ -1392,10 +1431,6 @@ com.qwirx.grid.Grid.prototype.handleScrollEvent = function(e)
 	// calls refreshAll() for us
 	this.setScroll(this.scrollOffset_.x,
 		e.target.getMaximum() - e.target.getValue());
-
-	com.qwirx.grid.log("scroll offset changed to " + 
-		this.scrollOffset_.y + " for " + e.target.getMaximum() + "," +
-			e.target.getValue());
 };
 
 com.qwirx.grid.Grid.prototype.getDatasource = function()
@@ -1478,12 +1513,12 @@ com.qwirx.grid.Grid.prototype.handleCursorMove = function(event)
  */
 com.qwirx.grid.Grid.prototype.handleGridCellValueChange = function(e)
 {
-	var td = e.target.getOriginalElement();
-	var gridColumn = td[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL];
+	var cell = this;
+	var gridColumn = cell.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL];
 	var colIndex = gridColumn.getColumnIndex();
-	var dsColumns = this.dataSource_.getColumns();
+	var dsColumns = this.grid.getDatasource().getColumns();
 	var dsColumn = dsColumns[colIndex];
-	this.getCursor().setFieldValue(dsColumn.name, td.children[0].innerHTML);
+	this.grid.getCursor().setFieldValue(dsColumn.name, cell.wrapper.innerHTML);
 };
 
 /**
