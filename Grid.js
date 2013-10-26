@@ -183,11 +183,11 @@ com.qwirx.grid.Grid.prototype.canAddMoreRows = function()
 };
 
 /**
- * @private
  * An internal function that's called by
  * {com.qwirx.grid.Grid#updateRowVisibility} to add more physical (table)
  * rows to the Grid, in order to be able to display more data at a time,
  * for example when the physical (pixel) size of the Grid changes.
+ * @private
  */
 com.qwirx.grid.Grid.prototype.addRow = function(visible)
 {
@@ -669,6 +669,29 @@ com.qwirx.grid.Grid.prototype.updateRowsFromIndex = function(dataRowIndex)
 	}
 };
 
+/**
+ * Adjusts the selection (selected rows) to accommodate rows being
+ * added or deleted.
+ * 
+ * <ul>
+ * <li>If the selection is entirely before and does not include the affected 
+ * row at all, then we don't need to change it.
+ * 
+ * <li> If all the selected rows are deleted, then the selection must be
+ * reset to {@link com.qwirx.grid.Grid#NO_SELECTION}.
+ * 
+ * <li> If a row is added on the first row of the selection, it shifts 
+ * the selection down.
+ * 
+ * <li> If any rows in a selection are deleted, then reduce the number
+ * of selected rows without changing its starting row.
+ * </ul>
+ * 
+ * @param {number} dataRowIndex The row number at which the rows were
+ * added or deleted.
+ * 
+ * @param {number} amount The number of rows added or deleted.
+ */ 
 com.qwirx.grid.Grid.prototype.adjustSelectionAround = function(dataRowIndex,
 	amount)
 {
@@ -705,7 +728,7 @@ com.qwirx.grid.Grid.prototype.adjustSelectionAround = function(dataRowIndex,
 				(amount > 0 && this.drag.y2 >= dataRowIndex),
 				"the deleted row should be before the end of the selection");
 			// selection is after the affected row, so move it up/down
-			// by 1 row.
+			// by the right amount.
 			this.drag.y1 += amount;
 			this.drag.y2 += amount;
 		}
@@ -718,6 +741,9 @@ com.qwirx.grid.Grid.prototype.adjustSelectionAround = function(dataRowIndex,
  * Respond to a datasource row being inserted at the given index.
  * This could be by refreshing the row and all subsequent ones, if it's
  * visible, otherwise by updating the scroll position if necessary.
+ * If the selection includes the rows immediately before and after the
+ * newly inserted rows, then it's adjusted to include the newly added rows
+ * as well.
  */
 com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 {
@@ -726,9 +752,12 @@ com.qwirx.grid.Grid.prototype.handleRowInsert = function(newRowIndex)
 };
 
 /**
- * Replace the existing contents of the existing row identified by
- * dataRowIndex (if visible) with the latest contents retrieved from the
- * data source.
+ * Handles {com.qwirx.data.Datasource.Events.ROWS_UPDATE} events
+ * indirectly via {com.qwirx.grid.Grid.prototype.handleDataSourceRowsEvent}.
+ * 
+ * Responds to modified row(s) in the data source by fetching the
+ * new row data and redrawing the affected rows, if they are visible on
+ * screen.
  */
 com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 {
@@ -740,7 +769,9 @@ com.qwirx.grid.Grid.prototype.handleRowUpdate = function(dataRowIndex)
 };
 
 /**
- * 
+ * Handles {com.qwirx.data.Datasource.Events.ROWS_DELETE} events by
+ * redrawing the grid rows that are affected by the deletion, and
+ * updating the selection if necessary.
  */
 com.qwirx.grid.Grid.prototype.handleRowDelete = function(dataRowIndex)
 {

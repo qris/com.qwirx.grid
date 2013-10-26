@@ -190,11 +190,20 @@ com.qwirx.grid.NavigationBar.prototype.sendEventOnException =
 		// the exception event, so rethrow it to help with debugging.
 		if (ret)
 		{
+			if (exception instanceof com.qwirx.data.DiscardBlocked)
+			{
+				// It's OK for nothing to be listening for this
+				// particular exception and the event thrown to report it.
+				// The navigation was cancelled, but nobody cared.
+				return;
+			}
+		
 			if (exception.message)
 			{
 				exception.message += " (a com.qwirx.util.ExceptionEvent " +
 					"was thrown, but nothing handled it.)";
 			}
+			
 			throw exception;
 		}
 	}
