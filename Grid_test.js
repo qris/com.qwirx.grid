@@ -50,8 +50,8 @@ function setUp()
 	mockController = new goog.testing.MockControl();
 }
 
-function expect_dialog(callback, expected_content, response_button,
-	listener)
+function expect_dialog(callback, expected_title, expected_content,
+	response_button)
 {
 	assertUndefined("The previous dialog response has not been used: " +
 		com.qwirx.ui.Dialog.dialogResponse,
@@ -66,10 +66,12 @@ function expect_dialog(callback, expected_content, response_button,
 			actual_dialog = e.target;
 		});
 	
-	callback.call(listener);
+	callback.call();
 	assertNotUndefined("No dialog shown: expected: " + expected_content,
 		actual_dialog);
-	assertEquals("Wrong dialog message", expected_content,
+	assertEquals("Wrong dialog title", expected_title,
+		actual_dialog.getTitle());
+	assertEquals("Wrong dialog content", expected_content,
 		actual_dialog.getContent());
 	assertUndefined("Dialog should have been displayed, and " +
 		"com.qwirx.ui.Dialog.dialogResponse cleared",
@@ -1697,11 +1699,12 @@ function test_grid_create_new_row_then_discard()
 		],
 		function()
 		{
-			expect_dialog(function()
+			expect_dialog(function() /* callback */
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
-				grid.getDirtyMessage(),
+				grid.getDirtyDialogTitle(),
+				grid.getDirtyDialogContent(),
 				goog.ui.Dialog.DefaultButtonKeys.CONTINUE);
 		},
 		"Moving off the NEW row should have sent a DISCARD event",
@@ -1774,7 +1777,8 @@ function assert_grid_response_to_dirty_dialog(grid, response_button,
 				{
 					com.qwirx.test.FakeClickEvent.send(grid.nav_.prevButton_);
 				},
-				grid.getDirtyMessage(), response_button);
+				grid.getDirtyDialogTitle(),
+				grid.getDirtyDialogContent(), response_button);
 			
 			if (response_button == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
 			{
@@ -2116,7 +2120,8 @@ function test_grid_row_changed_while_editing_shows_dialog()
 		function() /* eventing_callback */
 		{
 			expect_dialog(function() { send_enter_key(grid); },
-				grid.getChangedUnderfootMessage(),
+				grid.getChangedUnderfootDialogTitle(),
+				grid.getChangedUnderfootDialogContent(),
 				goog.ui.Dialog.DefaultButtonKeys.CANCEL);
 			assertEquals(1, grid.getCursor().getPosition());
 			assertTrue(grid.getCursor().isDirty());

@@ -1612,10 +1612,21 @@ com.qwirx.grid.Grid.prototype.saveChanges = function()
 };
 
 /**
- * @return the localised message that should be displayed to the user when
- * they try to navigate away from a dirty row (without saving changes).
+ * @return the localised title of the dialog that should be displayed
+ * when the user tries to navigate away from a dirty row, without saving
+ * changes.
  */
-com.qwirx.grid.Grid.prototype.getDirtyMessage = function()
+com.qwirx.grid.Grid.prototype.getDirtyDialogTitle = function()
+{
+	return 'Discard changes to current record?';
+};
+
+/**
+ * @return the localised content of the dialog that should be displayed
+ * when the user tries to navigate away from a dirty row, without saving
+ * changes.
+ */
+com.qwirx.grid.Grid.prototype.getDirtyDialogContent = function()
 {
 	return "Moving away from a modified record will discard " +
 		"your changes.<br /><br />Do you want to move anyway, " +
@@ -1623,10 +1634,20 @@ com.qwirx.grid.Grid.prototype.getDirtyMessage = function()
 };
 
 /**
+ * @return the localised title of the dialog that should be displayed
+ * when the user tries to save changes to a row that was modified
+ * independently (e.g. by a different Cursor) in the underlying datasource.
+ */
+com.qwirx.grid.Grid.prototype.getChangedUnderfootDialogTitle = function()
+{
+	return 'Overwrite changes to current record?';
+};
+
+/**
  * @return the localised message that should be displayed to the user when
  * they try to navigate away from a dirty row (without saving changes).
  */
-com.qwirx.grid.Grid.prototype.getChangedUnderfootMessage = function()
+com.qwirx.grid.Grid.prototype.getChangedUnderfootDialogContent = function()
 {
 	return "The contents of the current record have changed while you " +
 		"were editing it.<br /><br />Do you want to save your version " +
@@ -1650,8 +1671,8 @@ com.qwirx.grid.Grid.prototype.handleDirtyMovement = function(e)
 	var cursor = this.getCursor();
 	
 	var dialog = new com.qwirx.ui.Dialog();
-	dialog.setContent(this.getDirtyMessage());
-	dialog.setTitle('Discard changes to current record?');
+	dialog.setTitle(this.getDirtyDialogTitle());
+	dialog.setContent(this.getDirtyDialogContent());
 	dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createContinueSaveCancel());
 	dialog.setParentEventTarget(this);
 	
@@ -1776,8 +1797,8 @@ com.qwirx.grid.Grid.prototype.handleBeforeOverwriteEvent = function(e)
 	var cursor = this.getCursor();
 	
 	var dialog = new com.qwirx.ui.Dialog();
-	dialog.setContent(this.getChangedUnderfootMessage());
-	dialog.setTitle('Overwrite the current record?');
+	dialog.setTitle(this.getChangedUnderfootDialogTitle());
+	dialog.setContent(this.getChangedUnderfootDialogContent());
 	dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createContinueSaveCancel());
 	dialog.setParentEventTarget(this);
 	
