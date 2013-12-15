@@ -2140,6 +2140,89 @@ function test_grid_row_changed_while_editing_shows_dialog()
 // TODO check that updating a row that's being edited is handled
 // appropriately (what is appropriate? an exception event?)
 
+// TODO test navigation using cursor keys
+function test_grid_navigation_using_cursor_keys()
+{
+	var grid = initGrid(ds);
+	var oldCount = ds.getCount();
+	var cursor = grid.getCursor();
+	
+	assertEquals("Initial position should be BOF",
+		com.qwirx.data.Cursor.BOF, cursor.getPosition());
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.UP);
+	assertEquals("Pressing UP from BOF should not move anywhere",
+		com.qwirx.data.Cursor.BOF, cursor.getPosition());
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.DOWN);
+	assertEquals("Pressing DOWN from BOF should move to first record",
+		0, cursor.getPosition());
+	assertObjectEquals("Initial position should be column 0 of row 0",
+		grid.rows_[0].columns_[0], grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.DOWN);
+	assertEquals("Pressing DOWN from record 0 should move to record 1",
+		1, cursor.getPosition());
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.UP);
+	assertEquals("Pressing UP from record 1 should move to record 0",
+		0, cursor.getPosition());
+	
+	assertObjectEquals("Initial position should be column 0 of row 0",
+		grid.rows_[0].columns_[0], grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.TAB);
+	assertObjectEquals("Pressing TAB in record 0 column 0 should move " +
+		"to second field", grid.rows_[0].columns_[1], grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.DOWN);
+	assertObjectEquals("Pressing DOWN in record 0 column 1 should move " +
+		"to row 1 column 1", grid.rows_[1].columns_[1], grid.editableCell);
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.UP);
+	assertObjectEquals("Pressing UP in record 1 column 1 should move " +
+		"back to row 0 column 1", grid.rows_[0].columns_[1], 
+		grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.LEFT);
+	assertObjectEquals("Pressing LEFT in record 0 column 1 should move " +
+		"back to the first field", grid.rows_[0].columns_[0], 
+		grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.LEFT);
+	assertObjectEquals("Pressing LEFT in record 0 column 0 should not move " +
+		"anywhere", grid.rows_[0].columns_[0], grid.editableCell);
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.UP);
+	assertObjectEquals("Pressing UP from record 0 should move back to BOF",
+		com.qwirx.data.Cursor.BOF, cursor.getPosition());
+
+	cursor.setPosition(grid.getRowCount() - 1);
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.DOWN);
+	assertObjectEquals("Pressing DOWN from last record should move to EOF",
+		com.qwirx.data.Cursor.EOF, cursor.getPosition());
+	
+	goog.testing.events.fireKeySequence(grid.getElement(),
+		goog.events.KeyCodes.DOWN);
+	assertObjectEquals("Pressing DOWN from EOF should not move anywhere",
+		com.qwirx.data.Cursor.EOF, cursor.getPosition());
+}
+
+// TODO implement test_grid_edit_record_with_undefined_values_succeeds.
+// Description is in jsdocs above.
+
+// TODO support for horizontal scrolling/paging?
+
 // TODO test that scrolling with a modified (new/existing) row doesn't
 // lose the modified values.
 

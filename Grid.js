@@ -1011,6 +1011,21 @@ com.qwirx.grid.Grid.Row.prototype.setHighlighted = function(enable)
 		'highlight', enable);
 };
 
+com.qwirx.grid.Grid.prototype.getCurrentGridRowIndex = function()
+{
+	var currentDataRowIndex = this.cursor_.getPosition();
+	var currentGridRowIndex;
+	
+	if (this.isPositionedOnTemporaryNewRow)
+	{
+		return (this.getRowCount() - 1) - this.scrollOffset_.y;
+	}
+	else
+	{
+		return currentDataRowIndex - this.scrollOffset_.y;
+	}
+};
+
 /**
  * Updates the CSS which applies to this row, to indicate whether
  * it is the currently active row, pointed to by the grid's cursor's
@@ -1018,18 +1033,7 @@ com.qwirx.grid.Grid.Row.prototype.setHighlighted = function(enable)
  */
 com.qwirx.grid.Grid.prototype.updateCurrentRowHighlight = function()
 {
-	var currentDataRowIndex = this.cursor_.getPosition();
-	var currentGridRowIndex;
-	
-	if (this.isPositionedOnTemporaryNewRow)
-	{
-		currentGridRowIndex = (this.getRowCount() - 1) - this.scrollOffset_.y;
-	}
-	else
-	{
-		currentGridRowIndex = currentDataRowIndex - this.scrollOffset_.y;
-	}
-	
+	var currentGridRowIndex = this.getCurrentGridRowIndex();
 	var css;
 	
 	if (currentGridRowIndex >= 0 && 
@@ -1773,12 +1777,96 @@ com.qwirx.grid.Grid.Event.RowCountChange.prototype.getNewRowCount = function()
  */
 com.qwirx.grid.Grid.prototype.handleKeyEvent = function(e)
 {
-	if (e.keyCode == 13)
+	var cursor = this.getCursor();
+	var oldPosition = cursor.getPosition();
+	
+	// If we've moved onto a new row using cursor keys, then reset
+	// the current editable position to the same column of the new row,
+	// or failing that the first column.
+	var oldCell = this.editableCell;
+	var oldColumn = 0;
+	if (oldCell)
+	{
+		oldColumn = oldCell.tableCell[com.qwirx.grid.Grid.TD_ATTRIBUTE_COL].getColumnIndex();
+	}
+	var newColumn = oldColumn;
+	
+	var oldGridRowIndex = this.getCurrentGridRowIndex();
+	
+	if (e.keyCode == goog.events.KeyCodes.ENTER)
 	{
 		this.saveChanges();
-		e.stopPropagation();
-		return false;
 	}
+	else if (e.keyCode == goog.events.KeyCodes.ESC)
+	{
+		cursor.discard();
+	}
+	else if (e.keyCode == goog.events.KeyCodes.DOWN)
+	{
+		if (oldPosition == com.qwirx.data.Cursor.EOF)
+		{
+			// Ignore movement forwards from EOF
+		}
+		else
+		{
+			cursor.moveRelative(1);
+		}
+	}
+	else if (e.keyCode == goog.events.KeyCodes.UP)
+	{
+		if (oldPosition == com.qwirx.data.Cursor.BOF)
+		{
+			// Ignore movement backwards from BOF
+		}
+		else
+		{
+			cursor.moveRelative(-1);
+		}
+	}
+	else if (e.keyCode == goog.events.KeyCodes.TAB)
+	{
+		newColumn = oldColumn + 1;
+	}
+	else if (e.keyCode == goog.events.KeyCodes.LEFT)
+	{
+		newColumn = oldColumn - 1;
+	}
+	else
+	{
+		// tell the system that we didn't handle the event
+		return true;
+	}
+	
+	if (cursor.getPosition() != com.qwirx.data.Cursor.BOF &&
+		cursor.getPosition() != com.qwirx.data.Cursor.EOF)
+	{
+		// If we've moved onto a new row using cursor keys, then reset
+		// the current editable position to the same column of the new row,
+		// or failing that the first column.
+		
+		var newGridRowIndex = this.getCurrentGridRowIndex();
+		var newRow = this.rows_[newGridRowIndex];
+	
+		if (newColumn <= 0)
+		{
+			newColumn = 0;
+		}
+		else if (newColumn >= newRow.columns_length)
+		{
+			newColumn = newRow.columns_length - 1;
+		}
+		
+		if (newGridRowIndex != oldGridRowIndex ||
+			newColumn != oldColumn)
+		{
+			var newCell = this.rows_[newGridRowIndex].columns_[newColumn];
+			this.setEditableCell(newCell);
+		}
+	}
+	
+	// by default, if we didn't return true above, we did handle the event.
+	e.getBrowserEvent().preventDefault();
+	return false;
 };
 
 /**
@@ -1803,7 +1891,7 @@ com.qwirx.grid.Grid.prototype.handleBeforeOverwriteEvent = function(e)
 	dialog.setParentEventTarget(this);
 	
 	goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT,
-		function(e)
+		function(e) // click_handler
 		{
 			if (e.key == goog.ui.Dialog.DefaultButtonKeys.CANCEL)
 			{
